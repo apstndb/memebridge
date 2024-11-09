@@ -3,18 +3,25 @@ module github.com/apstndb/memebridge
 go 1.23.2
 
 require (
+	cloud.google.com/go/spanner v1.72.0
+	github.com/apstndb/go-spannulls v0.0.0-20241108213137-ec54277850d4
+	github.com/cloudspannerecosystem/memefish v0.0.0-20241106111047-2b2b4b23a1e7
+	github.com/google/go-cmp v0.6.0
+	google.golang.org/protobuf v1.35.1
+	spheric.cloud/xiter v0.0.0-20240904151420-c999f37a46b2
+)
+
+require (
 	cel.dev/expr v0.16.0 // indirect
 	cloud.google.com/go v0.116.0 // indirect
 	cloud.google.com/go/auth v0.9.9 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.4 // indirect
 	cloud.google.com/go/compute/metadata v0.5.2 // indirect
 	cloud.google.com/go/monitoring v1.21.1 // indirect
-	cloud.google.com/go/spanner v1.72.0 // indirect
 	github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp v1.5.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.24.1 // indirect
 	github.com/census-instrumentation/opencensus-proto v0.4.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/cloudspannerecosystem/memefish v0.0.0-20241106111047-2b2b4b23a1e7 // indirect
 	github.com/cncf/xds/go v0.0.0-20240822171458-6449f94b4d59 // indirect
 	github.com/envoyproxy/go-control-plane v0.13.0 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.1.0 // indirect
@@ -48,5 +55,4 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20241007155032-5fefd90f89a9 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20241015192408-796eee8c2d53 // indirect
 	google.golang.org/grpc v1.67.1 // indirect
-	google.golang.org/protobuf v1.35.1 // indirect
 )

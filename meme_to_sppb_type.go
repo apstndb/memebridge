@@ -1,15 +1,11 @@
 package memebridge
 
 import (
-	"fmt"
-
 	sppb "cloud.google.com/go/spanner/apiv1/spannerpb"
+	"fmt"
+	"github.com/apstndb/memebridge/internal"
 	"github.com/cloudspannerecosystem/memefish/ast"
 )
-
-func codeToSimpleType(code sppb.TypeCode) *sppb.Type {
-	return &sppb.Type{Code: code}
-}
 
 var ScalarTypeNameToTypeCodeMap = map[ast.ScalarTypeName]sppb.TypeCode{
 	ast.BoolTypeName:      sppb.TypeCode_BOOL,
@@ -26,7 +22,7 @@ var ScalarTypeNameToTypeCodeMap = map[ast.ScalarTypeName]sppb.TypeCode{
 
 func memefishScalarTypeToSpannerpbType(typename ast.ScalarTypeName) (*sppb.Type, error) {
 	if code, ok := ScalarTypeNameToTypeCodeMap[typename]; ok {
-		return codeToSimpleType(code), nil
+		return internal.CodeToSimpleType(code), nil
 	} else {
 		return nil, fmt.Errorf("unknown type: %v", typename)
 	}
