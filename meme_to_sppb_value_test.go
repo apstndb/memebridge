@@ -104,7 +104,13 @@ func TestMemefishExprToGCV(t *testing.T) {
 				Value: structpb.NewListValue(&structpb.ListValue{Values: []*structpb.Value{structpb.NewStringValue("1")}}),
 			},
 		},
-		// STRUCT, PROTO, ENUM
+		// TODO: STRUCT, PROTO, ENUM
+		{&ast.ParenExpr{Expr: &ast.IntLiteral{Value: "42", Base: 10}},
+			spanner.GenericColumnValue{
+				Type:  internal.CodeToSimpleType(sppb.TypeCode_INT64),
+				Value: structpb.NewStringValue("42"),
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("%T: %v", test.input, test.input.SQL()), func(t *testing.T) {

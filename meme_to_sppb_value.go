@@ -181,6 +181,8 @@ func MemefishExprToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
 		*ast.TupleStructLiteral,
 		*ast.TypedStructLiteral:
 		return astStructLiteralsToGCV(e)
+	case *ast.ParenExpr:
+		return MemefishExprToGCV(e.Expr)
 	default:
 		return zeroGCV, fmt.Errorf("not implemented: %s", e.SQL())
 	}
