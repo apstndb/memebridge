@@ -1,16 +1,17 @@
 package memebridge_test
 
 import (
+	"fmt"
+	"testing"
+
 	"cloud.google.com/go/spanner"
 	sppb "cloud.google.com/go/spanner/apiv1/spannerpb"
-	"fmt"
 	"github.com/apstndb/memebridge"
-	"github.com/apstndb/memebridge/internal"
+	"github.com/apstndb/spantype/ctorutil"
 	"github.com/cloudspannerecosystem/memefish/ast"
 	"github.com/google/go-cmp/cmp"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/structpb"
-	"testing"
 )
 
 func TestMemefishExprToGCV(t *testing.T) {
@@ -20,63 +21,63 @@ func TestMemefishExprToGCV(t *testing.T) {
 	}{
 		{&ast.BoolLiteral{Value: true},
 			spanner.GenericColumnValue{
-				Type:  internal.CodeToSimpleType(sppb.TypeCode_BOOL),
+				Type:  ctorutil.CodeToSimpleType(sppb.TypeCode_BOOL),
 				Value: structpb.NewBoolValue(true),
 			},
 		},
 		{&ast.IntLiteral{Value: "42", Base: 10},
 			spanner.GenericColumnValue{
-				Type:  internal.CodeToSimpleType(sppb.TypeCode_INT64),
+				Type:  ctorutil.CodeToSimpleType(sppb.TypeCode_INT64),
 				Value: structpb.NewStringValue("42"),
 			},
 		},
 		{&ast.FloatLiteral{Value: "3.14"},
 			spanner.GenericColumnValue{
-				Type:  internal.CodeToSimpleType(sppb.TypeCode_FLOAT64),
+				Type:  ctorutil.CodeToSimpleType(sppb.TypeCode_FLOAT64),
 				Value: structpb.NewNumberValue(3.14),
 			},
 		},
 		/* TODO: Support FLOAT32
 		{&ast.FloatLiteral{Value: "3.14"},
 			spanner.GenericColumnValue{
-				Type:  internal.CodeToSimpleType(sppb.TypeCode_FLOAT32),
+				Type:  ctorutil.CodeToSimpleType(sppb.TypeCode_FLOAT32),
 				Value: structpb.NewNumberValue(3.14),
 			},
 		},
 		*/
 		{&ast.TimestampLiteral{Value: &ast.StringLiteral{Value: `2024-01-01T00:00:00Z`}},
 			spanner.GenericColumnValue{
-				Type:  internal.CodeToSimpleType(sppb.TypeCode_TIMESTAMP),
+				Type:  ctorutil.CodeToSimpleType(sppb.TypeCode_TIMESTAMP),
 				Value: structpb.NewStringValue(`2024-01-01T00:00:00Z`),
 			},
 		},
 		{&ast.DateLiteral{Value: &ast.StringLiteral{Value: `2024-01-01`}},
 			spanner.GenericColumnValue{
-				Type:  internal.CodeToSimpleType(sppb.TypeCode_DATE),
+				Type:  ctorutil.CodeToSimpleType(sppb.TypeCode_DATE),
 				Value: structpb.NewStringValue(`2024-01-01`),
 			},
 		},
 		{&ast.StringLiteral{Value: `foo`},
 			spanner.GenericColumnValue{
-				Type:  internal.CodeToSimpleType(sppb.TypeCode_STRING),
+				Type:  ctorutil.CodeToSimpleType(sppb.TypeCode_STRING),
 				Value: structpb.NewStringValue(`foo`),
 			},
 		},
 		{&ast.BytesLiteral{Value: []byte(`foo`)},
 			spanner.GenericColumnValue{
-				Type:  internal.CodeToSimpleType(sppb.TypeCode_BYTES),
+				Type:  ctorutil.CodeToSimpleType(sppb.TypeCode_BYTES),
 				Value: structpb.NewStringValue(`Zm9v`),
 			},
 		},
 		{&ast.NumericLiteral{Value: &ast.StringLiteral{Value: "1234567890.123456789"}},
 			spanner.GenericColumnValue{
-				Type:  internal.CodeToSimpleType(sppb.TypeCode_NUMERIC),
+				Type:  ctorutil.CodeToSimpleType(sppb.TypeCode_NUMERIC),
 				Value: structpb.NewStringValue("1234567890.123456789"),
 			},
 		},
 		{&ast.JSONLiteral{Value: &ast.StringLiteral{Value: `{"string_value": "foo"}`}},
 			spanner.GenericColumnValue{
-				Type:  internal.CodeToSimpleType(sppb.TypeCode_JSON),
+				Type:  ctorutil.CodeToSimpleType(sppb.TypeCode_JSON),
 				Value: structpb.NewStringValue(`{"string_value": "foo"}`),
 			},
 		},
@@ -88,7 +89,7 @@ func TestMemefishExprToGCV(t *testing.T) {
 			}},
 		},
 			spanner.GenericColumnValue{
-				Type:  internal.ElemCodeToArrayType(sppb.TypeCode_INT64),
+				Type:  ctorutil.ElemCodeToArrayType(sppb.TypeCode_INT64),
 				Value: structpb.NewListValue(&structpb.ListValue{Values: []*structpb.Value{structpb.NewStringValue("1")}}),
 			},
 		},
@@ -100,15 +101,22 @@ func TestMemefishExprToGCV(t *testing.T) {
 			}},
 		},
 			spanner.GenericColumnValue{
-				Type:  internal.ElemCodeToArrayType(sppb.TypeCode_INT64),
+				Type:  ctorutil.ElemCodeToArrayType(sppb.TypeCode_INT64),
 				Value: structpb.NewListValue(&structpb.ListValue{Values: []*structpb.Value{structpb.NewStringValue("1")}}),
 			},
 		},
 		// TODO: STRUCT, PROTO, ENUM
 		{&ast.ParenExpr{Expr: &ast.IntLiteral{Value: "42", Base: 10}},
 			spanner.GenericColumnValue{
-				Type:  internal.CodeToSimpleType(sppb.TypeCode_INT64),
+				Type:  ctorutil.CodeToSimpleType(sppb.TypeCode_INT64),
 				Value: structpb.NewStringValue("42"),
+			},
+		},
+
+		{&ast.CallExpr{Func: &ast.Ident{Name: "PENDING_COMMIT_TIMESTAMP"}},
+			spanner.GenericColumnValue{
+				Type:  ctorutil.CodeToSimpleType(sppb.TypeCode_TIMESTAMP),
+				Value: structpb.NewStringValue("spanner.commit_timestamp()"),
 			},
 		},
 	}

@@ -634,6 +634,8 @@ github.com/apache/arrow/go/v11 v11.0.0/go.mod h1:Eg5OsL5H+e299f7u5ssuXsuHQVEGC4x
 github.com/apache/thrift v0.16.0/go.mod h1:PHK3hniurgQaNMZYaCLEqXKsYK8upmhPbmdP2FXSqgU=
 github.com/apstndb/go-spannulls v0.0.0-20241108213137-ec54277850d4 h1:WfWmn7N+kNxe5YYh1Uoy/FG2CzPpuxCkYQPovjxrDSk=
 github.com/apstndb/go-spannulls v0.0.0-20241108213137-ec54277850d4/go.mod h1:4Z/Xh/qZ1KSd0VDUI9n+c4fJqtscegWOOt4MAz14SWQ=
+github.com/apstndb/spantype v0.3.3 h1:fJ73ZdeYF0rAddix0ZfBUXjqix84/7txbzb/7dc1dJo=
+github.com/apstndb/spantype v0.3.3/go.mod h1:zn3qR4ebyy3HumRKRG0COMRSf4tmaR1HptQwe7/Xu7g=
 github.com/boombuler/barcode v1.0.0/go.mod h1:paBWMcWSl3LHKBqUq+rly7CNSldXjb2rDl3JlRe0mD8=
 github.com/boombuler/barcode v1.0.1/go.mod h1:paBWMcWSl3LHKBqUq+rly7CNSldXjb2rDl3JlRe0mD8=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
