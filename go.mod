@@ -5,6 +5,7 @@ go 1.23.2
 require (
 	cloud.google.com/go/spanner v1.72.0
 	github.com/apstndb/go-spannulls v0.0.0-20241108213137-ec54277850d4
+	github.com/apstndb/spantype v0.3.6
 	github.com/cloudspannerecosystem/memefish v0.0.0-20241106111047-2b2b4b23a1e7
 	github.com/google/go-cmp v0.6.0
 	google.golang.org/protobuf v1.35.1
@@ -20,7 +21,6 @@ require (
 	cloud.google.com/go/monitoring v1.21.1 // indirect
 	github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp v1.5.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.24.1 // indirect
-	github.com/apstndb/spantype v0.3.4 // indirect
 	github.com/census-instrumentation/opencensus-proto v0.4.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cncf/xds/go v0.0.0-20240822171458-6449f94b4d59 // indirect

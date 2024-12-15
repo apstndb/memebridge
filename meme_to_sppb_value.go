@@ -2,13 +2,15 @@ package memebridge
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
+	"slices"
+	"strconv"
+
 	"github.com/apstndb/go-spannulls"
 	"github.com/apstndb/spantype/typector"
 	"github.com/cloudspannerecosystem/memefish/char"
-	"slices"
 	"spheric.cloud/xiter"
-	"strconv"
 
 	"cloud.google.com/go/spanner"
 	sppb "cloud.google.com/go/spanner/apiv1/spannerpb"
@@ -57,41 +59,57 @@ func astStructLiteralsToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
 			if err != nil {
 				return zeroGCV, err
 			}
-			fields = append(fields, &sppb.StructType_Field{
-				Name: name,
-				Type: gcv.Type,
-			})
+			fields = append(fields, typector.NameTypeToStructTypeField(name, gcv.Type))
 			values = append(values, gcv.Value)
 		}
-	case *ast.TupleStructLiteral:
-		for _, value := range e.Values {
-			gcv, err := MemefishExprToGCV(value)
-			if err != nil {
-				return zeroGCV, err
-			}
-			fields = append(fields, &sppb.StructType_Field{Type: gcv.Type})
-			values = append(values, gcv.Value)
-		}
-
-	case *ast.TypedStructLiteral:
-		gcvs, err := xiter.TryCollect(xiter.MapErr(slices.Values(e.Values), MemefishExprToGCV))
+	case *ast.TupleStructLiteral, *ast.TypedStructLiteral:
+		astValues, err := extractValues(e)
 		if err != nil {
-			return zeroGCV, err
+			return zeroGCV, errors.New("invalid state")
 		}
 
-		fields, err = xiter.TryCollect(xiter.MapErr(xiter.Zip(
-			slices.Values(e.Fields),
-			slices.Values(gcvs)), tupledWithErr(generateStructTypeField)))
+		gcvs, err := xiter.TryCollect(xiter.MapErr(slices.Values(astValues), MemefishExprToGCV))
 		if err != nil {
 			return zeroGCV, err
 		}
 
 		values = slices.Collect(xiter.Map(slices.Values(gcvs), gcvToValue))
+
+		switch e := expr.(type) {
+		case *ast.TupleStructLiteral:
+			fields = slices.Collect(xiter.Map(
+				slices.Values(gcvs),
+				func(gcv spanner.GenericColumnValue) *sppb.StructType_Field {
+					return typector.TypeToUnnamedStructTypeField(gcv.Type)
+				},
+			))
+		case *ast.TypedStructLiteral:
+			fields, err = xiter.TryCollect(xiter.MapErr(
+				xiter.Zip(
+					slices.Values(e.Fields),
+					slices.Values(gcvs),
+				),
+				tupledWithErr(generateStructTypeField)))
+			if err != nil {
+				return zeroGCV, err
+			}
+		}
 	default:
 		return zeroGCV, fmt.Errorf("expr is not struct literal: %v", e)
 	}
 
 	return newStructGCV(fields, values), nil
+}
+
+func extractValues(expr ast.Expr) ([]ast.Expr, error) {
+	switch e := expr.(type) {
+	case *ast.TupleStructLiteral:
+		return e.Values, nil
+	case *ast.TypedStructLiteral:
+		return e.Values, nil
+	default:
+		return nil, fmt.Errorf("invalid argument, must be *ast.TupleStructLiteral or *ast.TypedStructLiteral, but %T", expr)
+	}
 }
 
 func MemefishExprToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
@@ -228,8 +246,5 @@ func generateStructTypeField(field *ast.StructField, gcv spanner.GenericColumnVa
 	} else {
 		typ = gcv.Type
 	}
-	return &sppb.StructType_Field{
-		Name: nameOrEmpty(field),
-		Type: typ,
-	}, nil
+	return typector.NameTypeToStructTypeField(nameOrEmpty(field), typ), nil
 }

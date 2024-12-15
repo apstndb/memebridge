@@ -1,8 +1,9 @@
 package memebridge
 
 import (
-	sppb "cloud.google.com/go/spanner/apiv1/spannerpb"
 	"fmt"
+
+	sppb "cloud.google.com/go/spanner/apiv1/spannerpb"
 	"github.com/apstndb/spantype/typector"
 	"github.com/cloudspannerecosystem/memefish/ast"
 )
@@ -41,10 +42,7 @@ func memefishStructFieldToStructTypeField(field *ast.StructField) (*sppb.StructT
 		return nil, err
 	}
 
-	return &sppb.StructType_Field{
-		Name: fieldNameOrEmpty(field),
-		Type: t,
-	}, nil
+	return typector.NameTypeToStructTypeField(fieldNameOrEmpty(field),t), nil
 }
 
 func MemefishTypeToSpannerpbType(typ ast.Type) (*sppb.Type, error) {
@@ -61,7 +59,7 @@ func MemefishTypeToSpannerpbType(typ ast.Type) (*sppb.Type, error) {
 			return nil, err
 		}
 
-		return &sppb.Type{ArrayElementType: typ, Code: sppb.TypeCode_ARRAY}, nil
+		return typector.ElemTypeToArrayType(typ), nil
 	case *ast.StructType:
 		var fields []*sppb.StructType_Field
 		for _, field := range t.Fields {
@@ -72,7 +70,7 @@ func MemefishTypeToSpannerpbType(typ ast.Type) (*sppb.Type, error) {
 			fields = append(fields, f)
 		}
 
-		return &sppb.Type{StructType: &sppb.StructType{Fields: fields}, Code: sppb.TypeCode_STRUCT}, nil
+		return typector.StructTypeFieldsToStructType(fields), nil
 	case *ast.NamedType:
 		return nil, fmt.Errorf("not known whether the named type is STRUCT or ENUM: %s", t.SQL())
 	default:

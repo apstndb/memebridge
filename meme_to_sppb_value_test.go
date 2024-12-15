@@ -6,12 +6,13 @@ import (
 
 	"cloud.google.com/go/spanner"
 	sppb "cloud.google.com/go/spanner/apiv1/spannerpb"
-	"github.com/apstndb/memebridge"
 	"github.com/apstndb/spantype/typector"
 	"github.com/cloudspannerecosystem/memefish/ast"
 	"github.com/google/go-cmp/cmp"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/structpb"
+
+	"github.com/apstndb/memebridge"
 )
 
 func TestMemefishExprToGCV(t *testing.T) {
