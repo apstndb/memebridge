@@ -1,14 +1,13 @@
 package memebridge
 
 import (
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"slices"
 	"strconv"
 
-	"github.com/apstndb/go-spannulls"
 	"github.com/apstndb/spantype/typector"
+	"github.com/apstndb/spanvalue/gcvctor"
 	"github.com/cloudspannerecosystem/memefish/char"
 	"spheric.cloud/xiter"
 
@@ -21,13 +20,6 @@ import (
 const commitTimestampPlaceholderString = "spanner.commit_timestamp()"
 
 var zeroGCV spanner.GenericColumnValue
-
-func newStructGCV(fields []*sppb.StructType_Field, values []*structpb.Value) spanner.GenericColumnValue {
-	return spanner.GenericColumnValue{
-		Type:  typector.StructTypeFieldsToStructType(fields),
-		Value: structpb.NewListValue(&structpb.ListValue{Values: values}),
-	}
-}
 
 func typelessStructLiteralArgToNameWithGCV(arg ast.TypelessStructLiteralArg) (string, spanner.GenericColumnValue, error) {
 	switch a := arg.(type) {
@@ -49,9 +41,8 @@ func typelessStructLiteralArgToNameWithGCV(arg ast.TypelessStructLiteralArg) (st
 }
 
 func astStructLiteralsToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
-	var fields []*sppb.StructType_Field
-	var values []*structpb.Value
-
+	var names []string
+	var gcvs []spanner.GenericColumnValue
 	switch e := expr.(type) {
 	case *ast.TypelessStructLiteral:
 		for _, value := range e.Values {
@@ -59,8 +50,10 @@ func astStructLiteralsToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
 			if err != nil {
 				return zeroGCV, err
 			}
-			fields = append(fields, typector.NameTypeToStructTypeField(name, gcv.Type))
-			values = append(values, gcv.Value)
+			// fields = append(fields, typector.NameTypeToStructTypeField(name, gcv.Type))
+			// values = append(values, gcv.Value)
+			names = append(names, name)
+			gcvs = append(gcvs, gcv)
 		}
 	case *ast.TupleStructLiteral, *ast.TypedStructLiteral:
 		astValues, err := extractValues(e)
@@ -68,37 +61,22 @@ func astStructLiteralsToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
 			return zeroGCV, errors.New("invalid state")
 		}
 
-		gcvs, err := xiter.TryCollect(xiter.MapErr(slices.Values(astValues), MemefishExprToGCV))
+		gcvs, err = xiter.TryCollect(xiter.MapErr(slices.Values(astValues), MemefishExprToGCV))
 		if err != nil {
 			return zeroGCV, err
 		}
 
-		values = slices.Collect(xiter.Map(slices.Values(gcvs), gcvToValue))
-
 		switch e := expr.(type) {
 		case *ast.TupleStructLiteral:
-			fields = slices.Collect(xiter.Map(
-				slices.Values(gcvs),
-				func(gcv spanner.GenericColumnValue) *sppb.StructType_Field {
-					return typector.TypeToUnnamedStructTypeField(gcv.Type)
-				},
-			))
+			names = slices.Repeat([]string{""}, len(gcvs))
 		case *ast.TypedStructLiteral:
-			fields, err = xiter.TryCollect(xiter.MapErr(
-				xiter.Zip(
-					slices.Values(e.Fields),
-					slices.Values(gcvs),
-				),
-				tupledWithErr(generateStructTypeField)))
-			if err != nil {
-				return zeroGCV, err
-			}
+			names = slices.Collect(xiter.Map(slices.Values(e.Fields), nameOrEmpty))
 		}
 	default:
 		return zeroGCV, fmt.Errorf("expr is not struct literal: %v", e)
 	}
 
-	return newStructGCV(fields, values), nil
+	return gcvctor.StructValue(names, gcvs)
 }
 
 func extractValues(expr ast.Expr) ([]ast.Expr, error) {
@@ -116,63 +94,33 @@ func MemefishExprToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
 	switch e := expr.(type) {
 	case *ast.NullLiteral:
 		// emulate behavior of query parameter with unknown type as INT64
-		return spanner.GenericColumnValue{
-			Type:  typector.CodeToSimpleType(sppb.TypeCode_INT64),
-			Value: structpb.NewNullValue(),
-		}, nil
+		return gcvctor.SimpleTypedNull(sppb.TypeCode_INT64), nil
 	case *ast.BoolLiteral:
-		return spanner.GenericColumnValue{
-			Type:  typector.CodeToSimpleType(sppb.TypeCode_BOOL),
-			Value: structpb.NewBoolValue(e.Value),
-		}, nil
+		return gcvctor.BoolValue(e.Value), nil
 	case *ast.IntLiteral:
 		i, err := strconv.ParseInt(e.Value, e.Base, 64)
 		if err != nil {
 			return zeroGCV, err
 		}
-		return spanner.GenericColumnValue{
-			Type:  typector.CodeToSimpleType(sppb.TypeCode_INT64),
-			Value: structpb.NewStringValue(strconv.FormatInt(i, 10)),
-		}, nil
+		return gcvctor.Int64Value(i), nil
 	case *ast.FloatLiteral:
 		f, err := strconv.ParseFloat(e.Value, 64)
 		if err != nil {
 			return zeroGCV, err
 		}
-		return spanner.GenericColumnValue{
-			Type:  typector.CodeToSimpleType(sppb.TypeCode_FLOAT64),
-			Value: structpb.NewNumberValue(f),
-		}, nil
+		return gcvctor.Float64Value(f), nil
 	case *ast.StringLiteral:
-		return spanner.GenericColumnValue{
-			Type:  typector.CodeToSimpleType(sppb.TypeCode_STRING),
-			Value: structpb.NewStringValue(e.Value),
-		}, nil
+		return gcvctor.StringValue(e.Value), nil
 	case *ast.BytesLiteral:
-		return spanner.GenericColumnValue{
-			Type:  typector.CodeToSimpleType(sppb.TypeCode_BYTES),
-			Value: structpb.NewStringValue(base64.StdEncoding.EncodeToString(e.Value)),
-		}, nil
+		return gcvctor.BytesValue(e.Value), nil
 	case *ast.DateLiteral:
-		return spanner.GenericColumnValue{
-			Type:  typector.CodeToSimpleType(sppb.TypeCode_DATE),
-			Value: structpb.NewStringValue(e.Value.Value),
-		}, nil
+		return gcvctor.StringBasedValue(sppb.TypeCode_DATE, e.Value.Value), nil
 	case *ast.TimestampLiteral:
-		return spanner.GenericColumnValue{
-			Type:  typector.CodeToSimpleType(sppb.TypeCode_TIMESTAMP),
-			Value: structpb.NewStringValue(e.Value.Value),
-		}, nil
+		return gcvctor.StringBasedValue(sppb.TypeCode_TIMESTAMP, e.Value.Value), nil
 	case *ast.NumericLiteral:
-		return spanner.GenericColumnValue{
-			Type:  typector.CodeToSimpleType(sppb.TypeCode_NUMERIC),
-			Value: structpb.NewStringValue(e.Value.Value),
-		}, nil
+		return gcvctor.StringBasedValue(sppb.TypeCode_NUMERIC, e.Value.Value), nil
 	case *ast.JSONLiteral:
-		return spanner.GenericColumnValue{
-			Type:  typector.CodeToSimpleType(sppb.TypeCode_JSON),
-			Value: structpb.NewStringValue(e.Value.Value),
-		}, nil
+		return gcvctor.StringBasedValue(sppb.TypeCode_JSON, e.Value.Value), nil
 	case *ast.ArrayLiteral:
 		gcvs, err := xiter.TryCollect(
 			xiter.MapErr(slices.Values(e.Values), MemefishExprToGCV))
@@ -204,24 +152,13 @@ func MemefishExprToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
 		return MemefishExprToGCV(e.Expr)
 	case *ast.CallExpr:
 		if char.EqualFold(e.Func.Name, "PENDING_COMMIT_TIMESTAMP") {
-			return spanner.GenericColumnValue{
-				Type:  typector.CodeToSimpleType(sppb.TypeCode_TIMESTAMP),
-				Value: structpb.NewStringValue(commitTimestampPlaceholderString),
-			}, nil
+			return gcvctor.StringBasedValue(sppb.TypeCode_TIMESTAMP, commitTimestampPlaceholderString), nil
 		}
-		// fallthrough
+		// break
 	default:
-		// fallthrough
+		// break
 	}
 	return zeroGCV, fmt.Errorf("not implemented: %s", expr.SQL())
-}
-
-func astTypeToGenericColumnValue(t ast.Type) (spanner.GenericColumnValue, error) {
-	typ, err := MemefishTypeToSpannerpbType(t)
-	if err != nil {
-		return zeroGCV, err
-	}
-	return spannulls.NullGenericColumnValueFromType(typ), nil
 }
 
 func nameOrEmpty(f *ast.StructField) string {
@@ -233,18 +170,4 @@ func nameOrEmpty(f *ast.StructField) string {
 
 func gcvToValue(gcv spanner.GenericColumnValue) *structpb.Value {
 	return gcv.Value
-}
-
-func generateStructTypeField(field *ast.StructField, gcv spanner.GenericColumnValue) (*sppb.StructType_Field, error) {
-	var typ *sppb.Type
-	if field != nil && field.Type != nil {
-		typeGcv, err := astTypeToGenericColumnValue(field.Type)
-		if err != nil {
-			return nil, err
-		}
-		typ = typeGcv.Type
-	} else {
-		typ = gcv.Type
-	}
-	return typector.NameTypeToStructTypeField(nameOrEmpty(field), typ), nil
 }

@@ -42,7 +42,7 @@ func memefishStructFieldToStructTypeField(field *ast.StructField) (*sppb.StructT
 		return nil, err
 	}
 
-	return typector.NameTypeToStructTypeField(fieldNameOrEmpty(field),t), nil
+	return typector.NameTypeToStructTypeField(fieldNameOrEmpty(field), t), nil
 }
 
 func MemefishTypeToSpannerpbType(typ ast.Type) (*sppb.Type, error) {
