@@ -7,7 +7,7 @@ require (
 	cloud.google.com/go/spanner v1.72.0
 	github.com/apstndb/spantype v0.3.6
 	github.com/apstndb/spanvalue v0.1.0
-	github.com/cloudspannerecosystem/memefish v0.0.0-20241106111047-2b2b4b23a1e7
+	github.com/cloudspannerecosystem/memefish v0.1.0
 	github.com/google/go-cmp v0.6.0
 	google.golang.org/protobuf v1.35.1
 	spheric.cloud/xiter v0.0.0-20240904151420-c999f37a46b2

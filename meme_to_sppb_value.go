@@ -151,7 +151,7 @@ func MemefishExprToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
 	case *ast.ParenExpr:
 		return MemefishExprToGCV(e.Expr)
 	case *ast.CallExpr:
-		if char.EqualFold(e.Func.Name, "PENDING_COMMIT_TIMESTAMP") {
+		if len(e.Func.Idents) == 1 && char.EqualFold(e.Func.Idents[0].Name, "PENDING_COMMIT_TIMESTAMP") {
 			return gcvctor.StringBasedValue(sppb.TypeCode_TIMESTAMP, commitTimestampPlaceholderString), nil
 		}
 		// break

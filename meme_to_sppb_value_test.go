@@ -114,7 +114,7 @@ func TestMemefishExprToGCV(t *testing.T) {
 			},
 		},
 
-		{&ast.CallExpr{Func: &ast.Ident{Name: "PENDING_COMMIT_TIMESTAMP"}},
+		{&ast.CallExpr{Func: &ast.Path{Idents: []*ast.Ident{{Name: "PENDING_COMMIT_TIMESTAMP"}}}},
 			spanner.GenericColumnValue{
 				Type:  typector.CodeToSimpleType(sppb.TypeCode_TIMESTAMP),
 				Value: structpb.NewStringValue("spanner.commit_timestamp()"),
