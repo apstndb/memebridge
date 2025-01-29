@@ -150,6 +150,8 @@ func MemefishExprToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
 		return astStructLiteralsToGCV(e)
 	case *ast.ParenExpr:
 		return MemefishExprToGCV(e.Expr)
+	case *ast.CastExpr:
+		return memefishCastExprToGCV(e)
 	case *ast.CallExpr:
 		if len(e.Func.Idents) == 1 && char.EqualFold(e.Func.Idents[0].Name, "PENDING_COMMIT_TIMESTAMP") {
 			return gcvctor.StringBasedValue(sppb.TypeCode_TIMESTAMP, commitTimestampPlaceholderString), nil
@@ -159,6 +161,25 @@ func MemefishExprToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
 		// break
 	}
 	return zeroGCV, fmt.Errorf("not implemented: %s", expr.SQL())
+}
+
+func memefishCastExprToGCV(cast *ast.CastExpr) (spanner.GenericColumnValue, error) {
+	t, err := MemefishTypeToSpannerpbType(cast.Type)
+	if err != nil {
+		return zeroGCV, err
+	}
+
+	switch t.GetCode() {
+	case sppb.TypeCode_UUID:
+		switch e := cast.Expr.(type) {
+		case *ast.StringLiteral:
+			return gcvctor.StringBasedValue(sppb.TypeCode_UUID, e.Value), nil
+		default:
+			return zeroGCV, fmt.Errorf("unsupported expr for UUID: %v", e.SQL())
+		}
+	default:
+		return zeroGCV, fmt.Errorf("unsupported type: %v", t.GetCode())
+	}
 }
 
 func nameOrEmpty(f *ast.StructField) string {

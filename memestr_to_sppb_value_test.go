@@ -72,6 +72,7 @@ func TestParseExpr(t *testing.T) {
 			)),
 		},
 		{"(1)", gcvctor.Int64Value(1)},
+		{`CAST("94a01a73-d90a-432d-a03f-5db58ea8058f" AS UUID)`, gcvctor.StringBasedValue(sppb.TypeCode_UUID, `94a01a73-d90a-432d-a03f-5db58ea8058f`)},
 		{"PENDING_COMMIT_TIMESTAMP()", gcvctor.StringBasedValue(sppb.TypeCode_TIMESTAMP, "spanner.commit_timestamp()")},
 	}
 	for _, tt := range tests {
