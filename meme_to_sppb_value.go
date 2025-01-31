@@ -171,6 +171,10 @@ func memefishCastExprToGCV(cast *ast.CastExpr) (spanner.GenericColumnValue, erro
 		return zeroGCV, err
 	}
 
+	if _, ok := cast.Expr.(*ast.NullLiteral); ok {
+		return gcvctor.SimpleTypedNull(destType.GetCode()), nil
+	}
+
 	// Prioritize types without literals
 	switch destType.GetCode() {
 	case sppb.TypeCode_FLOAT64:
@@ -205,16 +209,15 @@ func memefishCastExprToGCV(cast *ast.CastExpr) (spanner.GenericColumnValue, erro
 			}
 		}
 		return zeroGCV, fmt.Errorf("unsupported expr for %v: %v", destType.GetCode(), cast.Expr.SQL())
-	case sppb.TypeCode_UUID:
+	case sppb.TypeCode_UUID, sppb.TypeCode_INTERVAL:
 		switch e := cast.Expr.(type) {
 		case *ast.StringLiteral:
-			return gcvctor.StringBasedValue(sppb.TypeCode_UUID, e.Value), nil
-		default:
-			return zeroGCV, fmt.Errorf("unsupported expr for %v: %v", destType.GetCode(), e.SQL())
+			return gcvctor.StringBasedValue(destType.GetCode(), e.Value), nil
 		}
 	default:
 		return zeroGCV, fmt.Errorf("unsupported type: %v", destType.GetCode())
 	}
+	return zeroGCV, fmt.Errorf("unsupported expr for %v: %v", destType.GetCode(), cast.Expr.SQL())
 }
 
 func nameOrEmpty(f *ast.StructField) string {

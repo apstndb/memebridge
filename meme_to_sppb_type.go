@@ -2,11 +2,11 @@ package memebridge
 
 import (
 	"fmt"
+	"strings"
 
 	sppb "cloud.google.com/go/spanner/apiv1/spannerpb"
 	"github.com/apstndb/spantype/typector"
 	"github.com/cloudspannerecosystem/memefish/ast"
-	"github.com/cloudspannerecosystem/memefish/char"
 )
 
 var ScalarTypeNameToTypeCodeMap = map[ast.ScalarTypeName]sppb.TypeCode{
@@ -73,9 +73,13 @@ func MemefishTypeToSpannerpbType(typ ast.Type) (*sppb.Type, error) {
 
 		return typector.StructTypeFieldsToStructType(fields), nil
 	case *ast.NamedType:
-		switch {
-		case len(t.Path) == 1 && char.EqualFold(t.Path[0].Name, "UUID"):
-			return typector.CodeToSimpleType(sppb.TypeCode_UUID), nil
+		if len(t.Path) == 1 {
+			switch strings.ToUpper(t.Path[0].Name) {
+			case "UUID":
+				return typector.CodeToSimpleType(sppb.TypeCode_UUID), nil
+			case "INTERVAL":
+				return typector.CodeToSimpleType(sppb.TypeCode_INTERVAL), nil
+			}
 		}
 		return nil, fmt.Errorf("not known whether the named type is STRUCT or ENUM: %s", t.SQL())
 	default:

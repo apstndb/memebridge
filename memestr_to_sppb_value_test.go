@@ -82,7 +82,17 @@ func TestParseExpr(t *testing.T) {
 		{`CAST("Infinity" AS FLOAT32)`, gcvctor.Float32Value(float32(math.Inf(1)))},
 		{`CAST("-Infinity" AS FLOAT32)`, gcvctor.Float32Value(float32(math.Inf(-1)))},
 		{`CAST("94a01a73-d90a-432d-a03f-5db58ea8058f" AS UUID)`, gcvctor.StringBasedValue(sppb.TypeCode_UUID, `94a01a73-d90a-432d-a03f-5db58ea8058f`)},
+
 		{"PENDING_COMMIT_TIMESTAMP()", gcvctor.StringBasedValue(sppb.TypeCode_TIMESTAMP, "spanner.commit_timestamp()")},
+
+		// TODO: INTERVAL can't be parsed as NamedType
+		// {`CAST("P1Y2M3DT4H5M6.5S" AS INTERVAL)`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, `P1Y2M3DT4H5M6.5S`)},
+		// {"CAST(NULL AS INTERVAL)", gcvctor.SimpleTypedNull(sppb.TypeCode_INTERVAL)},
+
+		// Casted NULLs
+		{"CAST(NULL AS INT64)", gcvctor.SimpleTypedNull(sppb.TypeCode_INT64)},
+		{"CAST(NULL AS FLOAT64)", gcvctor.SimpleTypedNull(sppb.TypeCode_FLOAT64)},
+		{"CAST(NULL AS UUID)", gcvctor.SimpleTypedNull(sppb.TypeCode_UUID)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
