@@ -3,6 +3,7 @@ package memebridge
 import (
 	"errors"
 	"fmt"
+	"math"
 	"slices"
 	"strconv"
 
@@ -163,22 +164,56 @@ func MemefishExprToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
 	return zeroGCV, fmt.Errorf("not implemented: %s", expr.SQL())
 }
 
+// See https://github.com/google/zetasql/blob/master/zetasql/public/cast.cc
 func memefishCastExprToGCV(cast *ast.CastExpr) (spanner.GenericColumnValue, error) {
-	t, err := MemefishTypeToSpannerpbType(cast.Type)
+	destType, err := MemefishTypeToSpannerpbType(cast.Type)
 	if err != nil {
 		return zeroGCV, err
 	}
 
-	switch t.GetCode() {
+	// Prioritize types without literals
+	switch destType.GetCode() {
+	case sppb.TypeCode_FLOAT64:
+		switch e := cast.Expr.(type) {
+		case *ast.StringLiteral:
+			switch {
+			case char.EqualFold(e.Value, "NaN"), char.EqualFold(e.Value, "-NaN"):
+				return gcvctor.Float64Value(math.NaN()), nil
+			case char.EqualFold(e.Value, "Infinity"):
+				return gcvctor.Float64Value(math.Inf(1)), nil
+			case char.EqualFold(e.Value, "-Infinity"):
+				return gcvctor.Float64Value(math.Inf(-1)), nil
+			}
+		}
+		return zeroGCV, fmt.Errorf("unsupported expr for %v: %v", destType.GetCode(), cast.Expr.SQL())
+	case sppb.TypeCode_FLOAT32:
+		switch e := cast.Expr.(type) {
+		case *ast.FloatLiteral:
+			f, err := strconv.ParseFloat(e.Value, 32)
+			if err != nil {
+				return zeroGCV, err
+			}
+			return gcvctor.Float32Value(float32(f)), nil
+		case *ast.StringLiteral:
+			switch {
+			case char.EqualFold(e.Value, "NaN"), char.EqualFold(e.Value, "-NaN"):
+				return gcvctor.Float32Value(float32(math.NaN())), nil
+			case char.EqualFold(e.Value, "Infinity"):
+				return gcvctor.Float32Value(float32(math.Inf(1))), nil
+			case char.EqualFold(e.Value, "-Infinity"):
+				return gcvctor.Float32Value(float32(math.Inf(-1))), nil
+			}
+		}
+		return zeroGCV, fmt.Errorf("unsupported expr for %v: %v", destType.GetCode(), cast.Expr.SQL())
 	case sppb.TypeCode_UUID:
 		switch e := cast.Expr.(type) {
 		case *ast.StringLiteral:
 			return gcvctor.StringBasedValue(sppb.TypeCode_UUID, e.Value), nil
 		default:
-			return zeroGCV, fmt.Errorf("unsupported expr for UUID: %v", e.SQL())
+			return zeroGCV, fmt.Errorf("unsupported expr for %v: %v", destType.GetCode(), e.SQL())
 		}
 	default:
-		return zeroGCV, fmt.Errorf("unsupported type: %v", t.GetCode())
+		return zeroGCV, fmt.Errorf("unsupported type: %v", destType.GetCode())
 	}
 }
 

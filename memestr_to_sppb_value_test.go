@@ -1,6 +1,7 @@
 package memebridge_test
 
 import (
+	"math"
 	"math/big"
 	"testing"
 	"time"
@@ -10,6 +11,7 @@ import (
 	sppb "cloud.google.com/go/spanner/apiv1/spannerpb"
 	"github.com/apstndb/spantype/typector"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/apstndb/memebridge"
@@ -72,6 +74,13 @@ func TestParseExpr(t *testing.T) {
 			)),
 		},
 		{"(1)", gcvctor.Int64Value(1)},
+		{`CAST("NaN" AS FLOAT64)`, gcvctor.Float64Value(math.NaN())},
+		{`CAST("Infinity" AS FLOAT64)`, gcvctor.Float64Value(math.Inf(1))},
+		{`CAST("-Infinity" AS FLOAT64)`, gcvctor.Float64Value(math.Inf(-1))},
+		{`CAST(1.0 AS FLOAT32)`, gcvctor.Float32Value(1.0)},
+		{`CAST("NaN" AS FLOAT32)`, gcvctor.Float32Value(float32(math.NaN()))},
+		{`CAST("Infinity" AS FLOAT32)`, gcvctor.Float32Value(float32(math.Inf(1)))},
+		{`CAST("-Infinity" AS FLOAT32)`, gcvctor.Float32Value(float32(math.Inf(-1)))},
 		{`CAST("94a01a73-d90a-432d-a03f-5db58ea8058f" AS UUID)`, gcvctor.StringBasedValue(sppb.TypeCode_UUID, `94a01a73-d90a-432d-a03f-5db58ea8058f`)},
 		{"PENDING_COMMIT_TIMESTAMP()", gcvctor.StringBasedValue(sppb.TypeCode_TIMESTAMP, "spanner.commit_timestamp()")},
 	}
@@ -82,7 +91,7 @@ func TestParseExpr(t *testing.T) {
 				t.Errorf("should not fail, but err: %v", err)
 			}
 
-			if diff := cmp.Diff(tt.want, got, protocmp.Transform()); diff != "" {
+			if diff := cmp.Diff(tt.want, got, protocmp.Transform(), cmpopts.EquateNaNs()); diff != "" {
 				t.Errorf("mismatch (-want +got):\n%s", diff)
 			}
 		})

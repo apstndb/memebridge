@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go v0.118.0
 	cloud.google.com/go/spanner v1.74.0
 	github.com/apstndb/spantype v0.3.8
-	github.com/apstndb/spanvalue v0.1.0
+	github.com/apstndb/spanvalue v0.1.5-0.20250131053115-29ce7c62deec
 	github.com/cloudspannerecosystem/memefish v0.1.0
 	github.com/google/go-cmp v0.6.0
 	google.golang.org/protobuf v1.36.4
