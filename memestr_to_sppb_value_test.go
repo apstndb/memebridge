@@ -85,9 +85,8 @@ func TestParseExpr(t *testing.T) {
 
 		{"PENDING_COMMIT_TIMESTAMP()", gcvctor.StringBasedValue(sppb.TypeCode_TIMESTAMP, "spanner.commit_timestamp()")},
 
-		// TODO: INTERVAL can't be parsed as NamedType
-		// {`CAST("P1Y2M3DT4H5M6.5S" AS INTERVAL)`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, `P1Y2M3DT4H5M6.5S`)},
-		// {"CAST(NULL AS INTERVAL)", gcvctor.SimpleTypedNull(sppb.TypeCode_INTERVAL)},
+		{`CAST("P1Y2M3DT4H5M6.5S" AS INTERVAL)`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, `P1Y2M3DT4H5M6.5S`)},
+		{"CAST(NULL AS INTERVAL)", gcvctor.SimpleTypedNull(sppb.TypeCode_INTERVAL)},
 
 		// Casted NULLs
 		{"CAST(NULL AS INT64)", gcvctor.SimpleTypedNull(sppb.TypeCode_INT64)},
