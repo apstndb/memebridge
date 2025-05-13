@@ -88,6 +88,18 @@ func TestParseExpr(t *testing.T) {
 		{`CAST("P1Y2M3DT4H5M6.5S" AS INTERVAL)`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, `P1Y2M3DT4H5M6.5S`)},
 		{"CAST(NULL AS INTERVAL)", gcvctor.SimpleTypedNull(sppb.TypeCode_INTERVAL)},
 
+		{"INTERVAL 3 YEAR", gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "P3Y")},
+		{"INTERVAL 3 QUARTER", gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "P9M")},
+		{"INTERVAL 3 MONTH", gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "P3M")},
+		{"INTERVAL 3 WEEK", gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "P21D")},
+		{"INTERVAL 3 DAY", gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "P3D")},
+		{"INTERVAL 3 HOUR", gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "PT3H")},
+		{"INTERVAL 3 MINUTE", gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "PT3M")},
+		{"INTERVAL 3 SECOND", gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "PT3S")},
+		{"INTERVAL 3 MILLISECOND", gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "PT0.003S")},
+		{"INTERVAL 3 MICROSECOND", gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "PT0.000003S")},
+		{"INTERVAL 3 NANOSECOND", gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "PT0.000000003S")},
+
 		// Casted NULLs
 		{"CAST(NULL AS INT64)", gcvctor.SimpleTypedNull(sppb.TypeCode_INT64)},
 		{"CAST(NULL AS FLOAT64)", gcvctor.SimpleTypedNull(sppb.TypeCode_FLOAT64)},
