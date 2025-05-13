@@ -9,6 +9,7 @@ require (
 	github.com/apstndb/spanvalue v0.1.6
 	github.com/cloudspannerecosystem/memefish v0.1.0
 	github.com/google/go-cmp v0.7.0
+	github.com/samber/lo v1.47.0
 	google.golang.org/protobuf v1.36.6
 	spheric.cloud/xiter v0.0.0-20240904151420-c999f37a46b2
 )

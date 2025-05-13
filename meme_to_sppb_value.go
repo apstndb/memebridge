@@ -4,10 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"math/big"
 	"slices"
 	"strconv"
-	"strings"
 
 	"github.com/apstndb/spantype/typector"
 	"github.com/apstndb/spanvalue/gcvctor"
@@ -40,69 +38,6 @@ func typelessStructLiteralArgToNameWithGCV(arg ast.TypelessStructLiteralArg) (st
 		return a.As.Alias.Name, gcv, nil
 	default:
 		return "", zeroGCV, fmt.Errorf("unknown struct literal arg: %v", a)
-	}
-}
-
-func formatNumericForInterval(r *big.Rat) string {
-	if r.IsInt() {
-		return r.RatString()
-	}
-
-	// Strip trailing zero of nano-precision decimal
-	return strings.TrimRight(spanner.NumericString(r), "0")
-}
-
-func astIntervalLiteralsToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
-	switch e := expr.(type) {
-	case *ast.IntervalLiteralSingle:
-		intLiteral, ok := e.Value.(*ast.IntLiteral)
-		if !ok {
-			return zeroGCV, fmt.Errorf("expect int literal, but %v", e.Value)
-		}
-
-		i, err := strconv.ParseInt(intLiteral.Value, intLiteral.Base, 64)
-		if err != nil {
-			return zeroGCV, err
-		}
-
-		if i == 0 {
-			return gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "P0Y"), nil
-		}
-
-		var str string
-		// https://cloud.google.com/spanner/docs/reference/standard-sql/data-types#interval_datetime_parts
-		switch {
-		case char.EqualFold(e.DateTimePart.Name, "YEAR"):
-			str = fmt.Sprintf("P%vY", i)
-		case char.EqualFold(e.DateTimePart.Name, "QUARTER"):
-			str = fmt.Sprintf("P%vM", 3*i)
-		case char.EqualFold(e.DateTimePart.Name, "MONTH"):
-			str = fmt.Sprintf("P%vM", i)
-		case char.EqualFold(e.DateTimePart.Name, "WEEK"):
-			str = fmt.Sprintf("P%vD", 7*i)
-		case char.EqualFold(e.DateTimePart.Name, "DAY"):
-			str = fmt.Sprintf("P%vD", i)
-		case char.EqualFold(e.DateTimePart.Name, "HOUR"):
-			str = fmt.Sprintf("PT%vH", i)
-		case char.EqualFold(e.DateTimePart.Name, "MINUTE"):
-			str = fmt.Sprintf("PT%vM", i)
-		case char.EqualFold(e.DateTimePart.Name, "SECOND"):
-			str = fmt.Sprintf("PT%vS", i)
-		case char.EqualFold(e.DateTimePart.Name, "MILLISECOND"):
-			str = fmt.Sprintf("PT%vS", formatNumericForInterval(big.NewRat(i, 1000)))
-		case char.EqualFold(e.DateTimePart.Name, "MICROSECOND"):
-			str = fmt.Sprintf("PT%vS", formatNumericForInterval(big.NewRat(i, 1000*1000)))
-		case char.EqualFold(e.DateTimePart.Name, "NANOSECOND"):
-			str = fmt.Sprintf("PT%vS", formatNumericForInterval(big.NewRat(i, 1000*1000*1000)))
-		default:
-			return zeroGCV, fmt.Errorf("unknown datetime part: %v", e.DateTimePart.Name)
-		}
-
-		return gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, str), nil
-	case *ast.IntervalLiteralRange:
-		return zeroGCV, fmt.Errorf("interval literal with a datetime part range is not implemented: %v", e)
-	default:
-		return zeroGCV, fmt.Errorf("expr is not interval literal: %v", e)
 	}
 }
 
@@ -214,7 +149,7 @@ func MemefishExprToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
 		*ast.TupleStructLiteral,
 		*ast.TypedStructLiteral:
 		return astStructLiteralsToGCV(e)
-	case *ast.IntervalLiteralSingle:
+	case *ast.IntervalLiteralSingle, *ast.IntervalLiteralRange:
 		return astIntervalLiteralsToGCV(e)
 	case *ast.ParenExpr:
 		return MemefishExprToGCV(e.Expr)

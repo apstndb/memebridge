@@ -100,6 +100,22 @@ func TestParseExpr(t *testing.T) {
 		{"INTERVAL 3 MICROSECOND", gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "PT0.000003S")},
 		{"INTERVAL 3 NANOSECOND", gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "PT0.000000003S")},
 
+		{`INTERVAL '2-11' YEAR TO MONTH`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "P2Y11M")},
+		{`INTERVAL '2-11 28' YEAR TO DAY`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "P2Y11M28D")},
+		{`INTERVAL '2-11 28 16' YEAR TO HOUR`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "P2Y11M28DT16H")},
+		{`INTERVAL '2-11 28 16:15' YEAR TO MINUTE`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "P2Y11M28DT16H15M")},
+		{`INTERVAL '2-11 28 16:15:14' YEAR TO SECOND`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "P2Y11M28DT16H15M14S")},
+		{`INTERVAL '11 28' MONTH TO DAY`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "P11M28D")},
+		{`INTERVAL '11 28 16' MONTH TO HOUR`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "P11M28DT16H")},
+		{`INTERVAL '11 28 16:15' MONTH TO MINUTE`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "P11M28DT16H15M")},
+		{`INTERVAL '11 28 16:15:14' MONTH TO SECOND`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "P11M28DT16H15M14S")},
+		{`INTERVAL '28 16' DAY TO HOUR`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "P28DT16H")},
+		{`INTERVAL '28 16:15' DAY TO MINUTE`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "P28DT16H15M")},
+		{`INTERVAL '28 16:15:14' DAY TO SECOND`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "P28DT16H15M14S")},
+		{`INTERVAL '16:15' HOUR TO MINUTE`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "PT16H15M")},
+		{`INTERVAL '16:15:14' HOUR TO SECOND`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "PT16H15M14S")},
+		{`INTERVAL '15:14' MINUTE TO SECOND`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "PT15M14S")},
+
 		// Casted NULLs
 		{"CAST(NULL AS INT64)", gcvctor.SimpleTypedNull(sppb.TypeCode_INT64)},
 		{"CAST(NULL AS FLOAT64)", gcvctor.SimpleTypedNull(sppb.TypeCode_FLOAT64)},
