@@ -632,6 +632,8 @@ github.com/antihax/optional v1.0.0/go.mod h1:uupD/76wgC+ih3iEmQUL+0Ugr19nfwCT1kd
 github.com/apache/arrow/go/v10 v10.0.1/go.mod h1:YvhnlEePVnBS4+0z3fhPfUy7W1Ikj0Ih0vcRo/gZ1M0=
 github.com/apache/arrow/go/v11 v11.0.0/go.mod h1:Eg5OsL5H+e299f7u5ssuXsuHQVEGC4xei5aX110hRiI=
 github.com/apache/thrift v0.16.0/go.mod h1:PHK3hniurgQaNMZYaCLEqXKsYK8upmhPbmdP2FXSqgU=
+github.com/apstndb/memefish v0.0.0-20250513154612-a5ad8c44175d h1:4haassoR5DqpD6lcvfubtplAWtgT/fK4hGVYbLSfK8A=
+github.com/apstndb/memefish v0.0.0-20250513154612-a5ad8c44175d/go.mod h1:LB19E2xVWA3vns8r01ESIZB67/OYZOHVuETzifgTzVc=
 github.com/apstndb/spantype v0.3.8 h1:xy43Cclc2Hz6SL+3tZYuozOqJv6AML4Mv8cASgYo1O0=
 github.com/apstndb/spantype v0.3.8/go.mod h1:9eHowE7LcJ155ukCYUyuNzVAw9Ne0GXPXpHmu+iaMyk=
 github.com/apstndb/spanvalue v0.1.6 h1:ySkhuzi+8B3oq7DaVy69pTc2hXqoLZoK8fEjSZ+pL5w=

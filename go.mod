@@ -59,4 +59,4 @@ require (
 	google.golang.org/grpc v1.71.1 // indirect
 )
 
-replace github.com/cloudspannerecosystem/memefish => ../../cloudspannerecosystem/memefish
+replace github.com/cloudspannerecosystem/memefish => github.com/apstndb/memefish v0.0.0-20250513154612-a5ad8c44175d
