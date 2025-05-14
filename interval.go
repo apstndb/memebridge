@@ -123,7 +123,7 @@ var (
 	timeSignReStr    = `(?P<timeSign>[-+]?)`
 	hourReStr        = `(?P<hour>\d+)`
 	minuteReStr      = `(?P<minute>\d+)`
-	secondReStr      = `(?P<second>\d+)`
+	secondReStr      = `(?P<second>\d+(?:\.\d+)?)`
 	hourRe           = timeSignReStr + hourReStr
 	hourToMinuteRe   = timeSignReStr + hourReStr + `:` + minuteReStr
 	hourToSecondRe   = timeSignReStr + hourReStr + `:` + minuteReStr + `:` + secondReStr
@@ -210,7 +210,9 @@ func astIntervalLiteralsToGCV(expr ast.Expr) (spanner.GenericColumnValue, error)
 		matches := re.FindStringSubmatch(e.Value.Value)
 
 		var yearMonthSign, daySign, timeSign sign
-		var year, month, day, hour, minute, second int64
+		var year, month, day, hour, minute int64
+		second := new(big.Rat)
+
 		for i, name := range re.SubexpNames() {
 			s := matches[i]
 			switch name {
@@ -232,7 +234,10 @@ func astIntervalLiteralsToGCV(expr ast.Expr) (spanner.GenericColumnValue, error)
 			case "minute":
 				minute, err = strconv.ParseInt(s, 10, 64)
 			case "second":
-				second, err = strconv.ParseInt(s, 10, 64)
+				second, ok = second.SetString(s)
+				if !ok {
+					return zeroGCV, fmt.Errorf("invalid second: %v", s)
+				}
 			}
 
 			if err != nil {
@@ -241,13 +246,21 @@ func astIntervalLiteralsToGCV(expr ast.Expr) (spanner.GenericColumnValue, error)
 
 		}
 
-		interval := spanner.Interval{
-			Months: int32(yearMonthSign*12*year + month),
-			Days:   int32(daySign * day),
-			Nanos:  new(big.Int).Mul(big.NewInt(timeSign*(hour*3600+minute*60+second)), big.NewInt(1000*1000*1000)),
+		billion := big.NewRat(1_000_000_000, 1)
+		if !new(big.Rat).Mul(second, billion).IsInt() {
+			return zeroGCV, fmt.Errorf("invalid second: %v", second)
 		}
 
-		return gcvctor.IntervalValue(interval), nil
+		nanosRat := new(big.Rat).Mul(big.NewRat(timeSign*1_000_000_000, 1), new(big.Rat).Add(big.NewRat(hour*3600+minute*60, 1), second))
+		if !nanosRat.IsInt() {
+			return zeroGCV, fmt.Errorf("invalid non-integer nanoseconds: %v", nanosRat)
+		}
+
+		return gcvctor.IntervalValue(spanner.Interval{
+			Months: int32(yearMonthSign*12*year + month),
+			Days:   int32(daySign * day),
+			Nanos:  nanosRat.Num(),
+		}), nil
 	default:
 		return zeroGCV, fmt.Errorf("expr is not interval literal: %v", e)
 	}

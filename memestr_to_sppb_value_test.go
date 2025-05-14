@@ -115,6 +115,8 @@ func TestParseExpr(t *testing.T) {
 		{`INTERVAL '16:15' HOUR TO MINUTE`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "PT16H15M")},
 		{`INTERVAL '16:15:14' HOUR TO SECOND`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "PT16H15M14S")},
 		{`INTERVAL '15:14' MINUTE TO SECOND`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "PT15M14S")},
+		{`INTERVAL '10:20:30.52' HOUR TO SECOND`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "PT10H20M30.520S")},
+		{`INTERVAL '20:30.123456789' MINUTE TO SECOND`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "PT20M30.123456789S")},
 
 		// Casted NULLs
 		{"CAST(NULL AS INT64)", gcvctor.SimpleTypedNull(sppb.TypeCode_INT64)},
