@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"cloud.google.com/go/spanner"
-	sppb "cloud.google.com/go/spanner/apiv1/spannerpb"
 	"github.com/apstndb/spanvalue/gcvctor"
 	"github.com/cloudspannerecosystem/memefish/ast"
 	"github.com/samber/lo"
@@ -159,52 +158,63 @@ var (
 )
 
 func astIntervalLiteralsToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
+	interval, err := astIntervalLiteralsToInterval(expr)
+	if err != nil {
+		return zeroGCV, err
+	}
+
+	return gcvctor.IntervalValue(interval), nil
+}
+
+func astIntervalLiteralsToInterval(expr ast.Expr) (spanner.Interval, error) {
+	var zero spanner.Interval
+
 	switch e := expr.(type) {
 	case *ast.IntervalLiteralSingle:
 		intLiteral, ok := e.Value.(*ast.IntLiteral)
 		if !ok {
-			return zeroGCV, fmt.Errorf("expect int literal, but %v", e.Value)
+			return zero, fmt.Errorf("expect int literal, but %v", e.Value)
 		}
 
 		i, err := strconv.ParseInt(intLiteral.Value, intLiteral.Base, 64)
 		if err != nil {
-			return zeroGCV, err
+			return zero, err
 		}
 
 		part, err := parseDateTimePart(e.DateTimePart.Name)
 		if err != nil {
-			return zeroGCV, err
+			return zero, err
 		}
 
 		durationString, err := toRFC8601Duration(i, part)
 		if err != nil {
-			return zeroGCV, err
+			return zero, err
 		}
 
-		return gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, durationString), nil
+		return spanner.ParseInterval(durationString)
 	case *ast.IntervalLiteralRange:
 		start, err := parseDateTimePart(e.StartingDateTimePart.Name)
 		if err != nil {
-			return zeroGCV, err
+			return zero, err
 		}
 
 		end, err := parseDateTimePart(e.EndingDateTimePart.Name)
 		if err != nil {
-			return zeroGCV, err
+			return zero, err
 		}
 
 		mapForStart, ok := dateTimeRangeRegexpMap[start]
 		if !ok {
-			return zeroGCV, fmt.Errorf("start datetime part is not compatible with interval literal range: %v", start)
+			return zero, fmt.Errorf("start datetime part is not compatible with interval literal range: %v", start)
 		}
 
 		re, ok := mapForStart[end]
 		if !ok {
-			return zeroGCV, fmt.Errorf("datetime range is not compatible with interval literal range: start=%v, end=%v", start, end)
+			return zero, fmt.Errorf("datetime range is not compatible with interval literal range: start=%v, end=%v", start, end)
 		}
 
 		if !re.MatchString(e.Value.Value) {
-			return zeroGCV, fmt.Errorf("interval literal with a datetime part range is not valid: sql: %v, regexp: %v", e.Value.Value, re.String())
+			return zero, fmt.Errorf("interval literal with a datetime part range is not valid: sql: %v, regexp: %v", e.Value.Value, re.String())
 		}
 
 		matches := re.FindStringSubmatch(e.Value.Value)
@@ -215,6 +225,7 @@ func astIntervalLiteralsToGCV(expr ast.Expr) (spanner.GenericColumnValue, error)
 
 		for i, name := range re.SubexpNames() {
 			s := matches[i]
+
 			switch name {
 			case "yearMonthSign":
 				yearMonthSign = parseSign(s)
@@ -223,7 +234,6 @@ func astIntervalLiteralsToGCV(expr ast.Expr) (spanner.GenericColumnValue, error)
 			case "timeSign":
 				timeSign = parseSign(s)
 			case "year":
-				// Parse error won't occur because regexp rejects wrong inputs
 				year, err = strconv.ParseInt(s, 10, 64)
 			case "month":
 				month, err = strconv.ParseInt(s, 10, 64)
@@ -236,32 +246,29 @@ func astIntervalLiteralsToGCV(expr ast.Expr) (spanner.GenericColumnValue, error)
 			case "second":
 				second, ok = second.SetString(s)
 				if !ok {
-					return zeroGCV, fmt.Errorf("invalid second: %v", s)
+					return zero, fmt.Errorf("invalid second: %v", s)
 				}
 			}
 
 			if err != nil {
-				return zeroGCV, err
+				return zero, err
 			}
 
 		}
 
-		billion := big.NewRat(1_000_000_000, 1)
-		if !new(big.Rat).Mul(second, billion).IsInt() {
-			return zeroGCV, fmt.Errorf("invalid second: %v", second)
-		}
-
-		nanosRat := new(big.Rat).Mul(big.NewRat(timeSign*1_000_000_000, 1), new(big.Rat).Add(big.NewRat(hour*3600+minute*60, 1), second))
+		nanosRat := new(big.Rat).Mul(
+			big.NewRat(timeSign*1_000_000_000, 1),
+			new(big.Rat).Add(big.NewRat(hour*3600+minute*60, 1), second))
 		if !nanosRat.IsInt() {
-			return zeroGCV, fmt.Errorf("invalid non-integer nanoseconds: %v", nanosRat)
+			return zero, fmt.Errorf("invalid non-integer nanoseconds: %v", nanosRat)
 		}
 
-		return gcvctor.IntervalValue(spanner.Interval{
+		return spanner.Interval{
 			Months: int32(yearMonthSign*12*year + month),
 			Days:   int32(daySign * day),
 			Nanos:  nanosRat.Num(),
-		}), nil
+		}, nil
 	default:
-		return zeroGCV, fmt.Errorf("expr is not interval literal: %v", e)
+		return zero, fmt.Errorf("expr is not interval literal: %v", e)
 	}
 }
