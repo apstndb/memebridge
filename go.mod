@@ -7,7 +7,7 @@ require (
 	cloud.google.com/go/spanner v1.80.0
 	github.com/apstndb/spantype v0.3.8
 	github.com/apstndb/spanvalue v0.1.6
-	github.com/cloudspannerecosystem/memefish v0.1.0
+	github.com/cloudspannerecosystem/memefish v0.6.0
 	github.com/google/go-cmp v0.7.0
 	github.com/samber/lo v1.47.0
 	google.golang.org/protobuf v1.36.6
@@ -58,5 +58,3 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250414145226-207652e42e2e // indirect
 	google.golang.org/grpc v1.71.1 // indirect
 )
-
-replace github.com/cloudspannerecosystem/memefish => github.com/apstndb/memefish v0.0.0-20250513154612-a5ad8c44175d

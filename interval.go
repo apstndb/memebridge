@@ -38,63 +38,34 @@ func formatNumericForInterval(r *big.Rat) string {
 	return strings.TrimRight(spanner.NumericString(r), "0")
 }
 
-type dateTimePart string
-
-const (
-	dateTimePartYear   dateTimePart = "YEAR"
-	dateTimePartMonth  dateTimePart = "MONTH"
-	dateTimePartDay    dateTimePart = "DAY"
-	dateTimePartHour   dateTimePart = "HOUR"
-	dateTimePartMinute dateTimePart = "MINUTE"
-	dateTimePartSecond dateTimePart = "SECOND"
-
-	// QUARTER, WEEK, MILLISECOND, MICROSECOND, NANOSECOND are valid only in IntervalLiteralSingle
-
-	dateTimePartQuarter     dateTimePart = "QUARTER"
-	dateTimePartWeek        dateTimePart = "WEEK"
-	dateTimePartMillisecond dateTimePart = "MILLISECOND"
-	dateTimePartMicrosecond dateTimePart = "MICROSECOND"
-	dateTimePartNanosecond  dateTimePart = "NANOSECOND"
-)
-
-func parseDateTimePart(s string) (dateTimePart, error) {
-	switch part := dateTimePart(strings.ToUpper(s)); part {
-	case dateTimePartYear, dateTimePartMonth, dateTimePartDay, dateTimePartHour, dateTimePartMinute, dateTimePartSecond,
-		dateTimePartQuarter, dateTimePartWeek, dateTimePartMillisecond, dateTimePartMicrosecond, dateTimePartNanosecond:
-		return part, nil
-	default:
-		return "", fmt.Errorf("unknown datetime part: %v", s)
-	}
-}
-
-func toRFC8601Duration(i int64, part dateTimePart) (string, error) {
+func toRFC8601Duration(i int64, part ast.DateTimePart) (string, error) {
 	if i == 0 {
 		return "P0Y", nil
 	}
 
 	// https://cloud.google.com/spanner/docs/reference/standard-sql/data-types#interval_datetime_parts
 	switch part {
-	case dateTimePartYear:
+	case ast.DateTimePartYear:
 		return fmt.Sprintf("P%vY", i), nil
-	case dateTimePartQuarter:
+	case ast.DateTimePartQuarter:
 		return fmt.Sprintf("P%vM", 3*i), nil
-	case dateTimePartMonth:
+	case ast.DateTimePartMonth:
 		return fmt.Sprintf("P%vM", i), nil
-	case dateTimePartWeek:
+	case ast.DateTimePartWeek:
 		return fmt.Sprintf("P%vD", 7*i), nil
-	case dateTimePartDay:
+	case ast.DateTimePartDay:
 		return fmt.Sprintf("P%vD", i), nil
-	case dateTimePartHour:
+	case ast.DateTimePartHour:
 		return fmt.Sprintf("PT%vH", i), nil
-	case dateTimePartMinute:
+	case ast.DateTimePartMinute:
 		return fmt.Sprintf("PT%vM", i), nil
-	case dateTimePartSecond:
+	case ast.DateTimePartSecond:
 		return fmt.Sprintf("PT%vS", i), nil
-	case dateTimePartMillisecond:
+	case ast.DateTimePartMillisecond:
 		return fmt.Sprintf("PT%vS", formatNumericForInterval(big.NewRat(i, 1000))), nil
-	case dateTimePartMicrosecond:
+	case ast.DateTimePartMicrosecond:
 		return fmt.Sprintf("PT%vS", formatNumericForInterval(big.NewRat(i, 1000*1000))), nil
-	case dateTimePartNanosecond:
+	case ast.DateTimePartNanosecond:
 		return fmt.Sprintf("PT%vS", formatNumericForInterval(big.NewRat(i, 1000*1000*1000))), nil
 	default:
 		return "", fmt.Errorf("unknown datetime part: %v", part)
@@ -128,31 +99,31 @@ var (
 	hourToSecondRe   = timeSignReStr + hourReStr + `:` + minuteReStr + `:` + secondReStr
 	minuteToSecondRe = timeSignReStr + minuteReStr + `:` + secondReStr
 
-	dateTimeRangeRegexpMap = map[dateTimePart]map[dateTimePart]*regexp.Regexp{
-		dateTimePartYear: {
-			dateTimePartMonth:  mustCompileDateTimeRe(yearToMonthRe, ""),
-			dateTimePartDay:    mustCompileDateTimeRe(yearToDayRe, ""),
-			dateTimePartHour:   mustCompileDateTimeRe(yearToDayRe, hourRe),
-			dateTimePartMinute: mustCompileDateTimeRe(yearToDayRe, hourToMinuteRe),
-			dateTimePartSecond: mustCompileDateTimeRe(yearToDayRe, hourToSecondRe),
+	dateTimeRangeRegexpMap = map[ast.DateTimePart]map[ast.DateTimePart]*regexp.Regexp{
+		ast.DateTimePartYear: {
+			ast.DateTimePartMonth:  mustCompileDateTimeRe(yearToMonthRe, ""),
+			ast.DateTimePartDay:    mustCompileDateTimeRe(yearToDayRe, ""),
+			ast.DateTimePartHour:   mustCompileDateTimeRe(yearToDayRe, hourRe),
+			ast.DateTimePartMinute: mustCompileDateTimeRe(yearToDayRe, hourToMinuteRe),
+			ast.DateTimePartSecond: mustCompileDateTimeRe(yearToDayRe, hourToSecondRe),
 		},
-		dateTimePartMonth: {
-			dateTimePartDay:    mustCompileDateTimeRe(monthToDayRe, ""),
-			dateTimePartHour:   mustCompileDateTimeRe(monthToDayRe, hourRe),
-			dateTimePartMinute: mustCompileDateTimeRe(monthToDayRe, hourToMinuteRe),
-			dateTimePartSecond: mustCompileDateTimeRe(monthToDayRe, hourToSecondRe),
+		ast.DateTimePartMonth: {
+			ast.DateTimePartDay:    mustCompileDateTimeRe(monthToDayRe, ""),
+			ast.DateTimePartHour:   mustCompileDateTimeRe(monthToDayRe, hourRe),
+			ast.DateTimePartMinute: mustCompileDateTimeRe(monthToDayRe, hourToMinuteRe),
+			ast.DateTimePartSecond: mustCompileDateTimeRe(monthToDayRe, hourToSecondRe),
 		},
-		dateTimePartDay: {
-			dateTimePartHour:   mustCompileDateTimeRe(dayRe, hourRe),
-			dateTimePartMinute: mustCompileDateTimeRe(dayRe, hourToMinuteRe),
-			dateTimePartSecond: mustCompileDateTimeRe(dayRe, hourToSecondRe),
+		ast.DateTimePartDay: {
+			ast.DateTimePartHour:   mustCompileDateTimeRe(dayRe, hourRe),
+			ast.DateTimePartMinute: mustCompileDateTimeRe(dayRe, hourToMinuteRe),
+			ast.DateTimePartSecond: mustCompileDateTimeRe(dayRe, hourToSecondRe),
 		},
-		dateTimePartHour: {
-			dateTimePartMinute: mustCompileDateTimeRe("", hourToMinuteRe),
-			dateTimePartSecond: mustCompileDateTimeRe("", hourToSecondRe),
+		ast.DateTimePartHour: {
+			ast.DateTimePartMinute: mustCompileDateTimeRe("", hourToMinuteRe),
+			ast.DateTimePartSecond: mustCompileDateTimeRe("", hourToSecondRe),
 		},
-		dateTimePartMinute: {
-			dateTimePartSecond: mustCompileDateTimeRe("", minuteToSecondRe),
+		ast.DateTimePartMinute: {
+			ast.DateTimePartSecond: mustCompileDateTimeRe("", minuteToSecondRe),
 		},
 	}
 )
@@ -181,33 +152,20 @@ func astIntervalLiteralsToInterval(expr ast.Expr) (spanner.Interval, error) {
 			return zero, err
 		}
 
-		part, err := parseDateTimePart(e.DateTimePart.Name)
-		if err != nil {
-			return zero, err
-		}
-
-		durationString, err := toRFC8601Duration(i, part)
+		durationString, err := toRFC8601Duration(i, e.DateTimePart)
 		if err != nil {
 			return zero, err
 		}
 
 		return spanner.ParseInterval(durationString)
 	case *ast.IntervalLiteralRange:
-		start, err := parseDateTimePart(e.StartingDateTimePart.Name)
-		if err != nil {
-			return zero, err
-		}
-
-		end, err := parseDateTimePart(e.EndingDateTimePart.Name)
-		if err != nil {
-			return zero, err
-		}
-
+		start := e.StartingDateTimePart
 		mapForStart, ok := dateTimeRangeRegexpMap[start]
 		if !ok {
 			return zero, fmt.Errorf("start datetime part is not compatible with interval literal range: %v", start)
 		}
 
+		end := e.EndingDateTimePart
 		re, ok := mapForStart[end]
 		if !ok {
 			return zero, fmt.Errorf("datetime range is not compatible with interval literal range: start=%v, end=%v", start, end)
@@ -224,6 +182,8 @@ func astIntervalLiteralsToInterval(expr ast.Expr) (spanner.Interval, error) {
 		second := new(big.Rat)
 
 		for i, name := range re.SubexpNames() {
+			var err error
+
 			s := matches[i]
 
 			switch name {
@@ -253,7 +213,6 @@ func astIntervalLiteralsToInterval(expr ast.Expr) (spanner.Interval, error) {
 			if err != nil {
 				return zero, err
 			}
-
 		}
 
 		nanosRat := new(big.Rat).Mul(
