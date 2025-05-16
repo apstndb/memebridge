@@ -20,6 +20,7 @@ var ScalarTypeNameToTypeCodeMap = map[ast.ScalarTypeName]sppb.TypeCode{
 	ast.TimestampTypeName: sppb.TypeCode_TIMESTAMP,
 	ast.NumericTypeName:   sppb.TypeCode_NUMERIC,
 	ast.JSONTypeName:      sppb.TypeCode_JSON,
+	ast.IntervalTypeName:  sppb.TypeCode_INTERVAL,
 }
 
 func memefishScalarTypeToSpannerpbType(typename ast.ScalarTypeName) (*sppb.Type, error) {
@@ -77,8 +78,6 @@ func MemefishTypeToSpannerpbType(typ ast.Type) (*sppb.Type, error) {
 			switch strings.ToUpper(t.Path[0].Name) {
 			case "UUID":
 				return typector.CodeToSimpleType(sppb.TypeCode_UUID), nil
-			case "INTERVAL":
-				return typector.CodeToSimpleType(sppb.TypeCode_INTERVAL), nil
 			}
 		}
 		return nil, fmt.Errorf("not known whether the named type is STRUCT or ENUM: %s", t.SQL())

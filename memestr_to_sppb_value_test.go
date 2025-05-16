@@ -85,9 +85,38 @@ func TestParseExpr(t *testing.T) {
 
 		{"PENDING_COMMIT_TIMESTAMP()", gcvctor.StringBasedValue(sppb.TypeCode_TIMESTAMP, "spanner.commit_timestamp()")},
 
-		// TODO: INTERVAL can't be parsed as NamedType
-		// {`CAST("P1Y2M3DT4H5M6.5S" AS INTERVAL)`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, `P1Y2M3DT4H5M6.5S`)},
-		// {"CAST(NULL AS INTERVAL)", gcvctor.SimpleTypedNull(sppb.TypeCode_INTERVAL)},
+		{`CAST("P1Y2M3DT4H5M6.5S" AS INTERVAL)`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, `P1Y2M3DT4H5M6.5S`)},
+		{"CAST(NULL AS INTERVAL)", gcvctor.SimpleTypedNull(sppb.TypeCode_INTERVAL)},
+
+		{"INTERVAL 3 YEAR", gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "P3Y")},
+		{"INTERVAL 3 QUARTER", gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "P9M")},
+		{"INTERVAL 3 MONTH", gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "P3M")},
+		{"INTERVAL 3 WEEK", gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "P21D")},
+		{"INTERVAL 3 DAY", gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "P3D")},
+		{"INTERVAL 3 HOUR", gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "PT3H")},
+		{"INTERVAL 3 MINUTE", gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "PT3M")},
+		{"INTERVAL 3 SECOND", gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "PT3S")},
+		{"INTERVAL 3 MILLISECOND", gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "PT0.003S")},
+		{"INTERVAL 3 MICROSECOND", gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "PT0.000003S")},
+		{"INTERVAL 3 NANOSECOND", gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "PT0.000000003S")},
+
+		{`INTERVAL '2-11' YEAR TO MONTH`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "P2Y11M")},
+		{`INTERVAL '2-11 28' YEAR TO DAY`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "P2Y11M28D")},
+		{`INTERVAL '2-11 28 16' YEAR TO HOUR`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "P2Y11M28DT16H")},
+		{`INTERVAL '2-11 28 16:15' YEAR TO MINUTE`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "P2Y11M28DT16H15M")},
+		{`INTERVAL '2-11 28 16:15:14' YEAR TO SECOND`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "P2Y11M28DT16H15M14S")},
+		{`INTERVAL '11 28' MONTH TO DAY`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "P11M28D")},
+		{`INTERVAL '11 28 16' MONTH TO HOUR`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "P11M28DT16H")},
+		{`INTERVAL '11 28 16:15' MONTH TO MINUTE`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "P11M28DT16H15M")},
+		{`INTERVAL '11 28 16:15:14' MONTH TO SECOND`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "P11M28DT16H15M14S")},
+		{`INTERVAL '28 16' DAY TO HOUR`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "P28DT16H")},
+		{`INTERVAL '28 16:15' DAY TO MINUTE`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "P28DT16H15M")},
+		{`INTERVAL '28 16:15:14' DAY TO SECOND`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "P28DT16H15M14S")},
+		{`INTERVAL '16:15' HOUR TO MINUTE`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "PT16H15M")},
+		{`INTERVAL '16:15:14' HOUR TO SECOND`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "PT16H15M14S")},
+		{`INTERVAL '15:14' MINUTE TO SECOND`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "PT15M14S")},
+		{`INTERVAL '10:20:30.52' HOUR TO SECOND`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "PT10H20M30.520S")},
+		{`INTERVAL '20:30.123456789' MINUTE TO SECOND`, gcvctor.StringBasedValue(sppb.TypeCode_INTERVAL, "PT20M30.123456789S")},
 
 		// Casted NULLs
 		{"CAST(NULL AS INT64)", gcvctor.SimpleTypedNull(sppb.TypeCode_INT64)},
