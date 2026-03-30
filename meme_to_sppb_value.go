@@ -10,7 +10,7 @@ import (
 	"github.com/apstndb/spantype/typector"
 	"github.com/apstndb/spanvalue/gcvctor"
 	"github.com/cloudspannerecosystem/memefish/char"
-	"spheric.cloud/xiter"
+	"github.com/samber/lo"
 
 	"cloud.google.com/go/spanner"
 	sppb "cloud.google.com/go/spanner/apiv1/spannerpb"
@@ -62,7 +62,9 @@ func astStructLiteralsToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
 			return zeroGCV, errors.New("invalid state")
 		}
 
-		gcvs, err = xiter.TryCollect(xiter.MapErr(slices.Values(astValues), MemefishExprToGCV))
+		gcvs, err = lo.MapErr(astValues, func(expr ast.Expr, _ int) (spanner.GenericColumnValue, error) {
+			return MemefishExprToGCV(expr)
+		})
 		if err != nil {
 			return zeroGCV, err
 		}
@@ -71,7 +73,9 @@ func astStructLiteralsToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
 		case *ast.TupleStructLiteral:
 			names = slices.Repeat([]string{""}, len(gcvs))
 		case *ast.TypedStructLiteral:
-			names = slices.Collect(xiter.Map(slices.Values(e.Fields), nameOrEmpty))
+			names = lo.Map(e.Fields, func(f *ast.StructField, _ int) string {
+				return nameOrEmpty(f)
+			})
 		}
 	default:
 		return zeroGCV, fmt.Errorf("expr is not struct literal: %v", e)
@@ -123,8 +127,9 @@ func MemefishExprToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
 	case *ast.JSONLiteral:
 		return gcvctor.StringBasedValue(sppb.TypeCode_JSON, e.Value.Value), nil
 	case *ast.ArrayLiteral:
-		gcvs, err := xiter.TryCollect(
-			xiter.MapErr(slices.Values(e.Values), MemefishExprToGCV))
+		gcvs, err := lo.MapErr(e.Values, func(expr ast.Expr, _ int) (spanner.GenericColumnValue, error) {
+			return MemefishExprToGCV(expr)
+		})
 		if err != nil {
 			return zeroGCV, err
 		}
@@ -142,8 +147,10 @@ func MemefishExprToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
 		}
 
 		return spanner.GenericColumnValue{
-			Type:  typector.ElemTypeToArrayType(typ),
-			Value: structpb.NewListValue(&structpb.ListValue{Values: slices.Collect(xiter.Map(slices.Values(gcvs), gcvToValue))}),
+			Type: typector.ElemTypeToArrayType(typ),
+			Value: structpb.NewListValue(&structpb.ListValue{Values: lo.Map(gcvs, func(gcv spanner.GenericColumnValue, _ int) *structpb.Value {
+				return gcvToValue(gcv)
+			})}),
 		}, nil
 	case *ast.TypelessStructLiteral,
 		*ast.TupleStructLiteral,
