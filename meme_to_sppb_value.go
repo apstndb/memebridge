@@ -22,7 +22,7 @@ const commitTimestampPlaceholderString = "spanner.commit_timestamp()"
 
 var (
 	ErrCannotInferArrayElementType = errors.New("cannot infer element type for empty array literal without explicit type")
-	zeroGCV                       spanner.GenericColumnValue
+	zeroGCV                        spanner.GenericColumnValue
 )
 
 func typelessStructLiteralArgToNameWithGCV(arg ast.TypelessStructLiteralArg) (string, spanner.GenericColumnValue, error) {
@@ -187,7 +187,7 @@ func memefishCastExprToGCV(cast *ast.CastExpr) (spanner.GenericColumnValue, erro
 	}
 
 	if _, ok := cast.Expr.(*ast.NullLiteral); ok {
-		return gcvctor.SimpleTypedNull(destType.GetCode()), nil
+		return gcvctor.TypedNull(destType), nil
 	}
 
 	// Prioritize types without literals
