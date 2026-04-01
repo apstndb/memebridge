@@ -145,6 +145,9 @@ func MemefishExprToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
 		} else if len(gcvs) > 0 {
 			typ = gcvs[0].Type
 		}
+		if typ == nil {
+			return zeroGCV, errors.New("cannot infer element type for empty array literal without explicit type")
+		}
 
 		return spanner.GenericColumnValue{
 			Type: typector.ElemTypeToArrayType(typ),

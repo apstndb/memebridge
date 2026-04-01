@@ -2,6 +2,7 @@ package memebridge_test
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"cloud.google.com/go/spanner"
@@ -131,5 +132,15 @@ func TestMemefishExprToGCV(t *testing.T) {
 				t.Errorf("mismatch (-want +got):\n%s", diff)
 			}
 		})
+	}
+}
+
+func TestMemefishExprToGCV_EmptyArrayWithoutTypeReturnsError(t *testing.T) {
+	_, err := memebridge.MemefishExprToGCV(&ast.ArrayLiteral{})
+	if err == nil {
+		t.Fatal("expected error for typeless empty array literal")
+	}
+	if !strings.Contains(err.Error(), "cannot infer element type for empty array literal without explicit type") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
