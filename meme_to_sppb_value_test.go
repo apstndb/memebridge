@@ -1,6 +1,7 @@
 package memebridge_test
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 
@@ -131,5 +132,15 @@ func TestMemefishExprToGCV(t *testing.T) {
 				t.Errorf("mismatch (-want +got):\n%s", diff)
 			}
 		})
+	}
+}
+
+func TestMemefishExprToGCV_EmptyArrayWithoutTypeReturnsError(t *testing.T) {
+	_, err := memebridge.MemefishExprToGCV(&ast.ArrayLiteral{})
+	if err == nil {
+		t.Fatal("expected error for typeless empty array literal")
+	}
+	if !errors.Is(err, memebridge.ErrCannotInferArrayElementType) {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
