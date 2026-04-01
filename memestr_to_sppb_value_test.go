@@ -122,6 +122,11 @@ func TestParseExpr(t *testing.T) {
 		{"CAST(NULL AS INT64)", gcvctor.SimpleTypedNull(sppb.TypeCode_INT64)},
 		{"CAST(NULL AS FLOAT64)", gcvctor.SimpleTypedNull(sppb.TypeCode_FLOAT64)},
 		{"CAST(NULL AS UUID)", gcvctor.SimpleTypedNull(sppb.TypeCode_UUID)},
+		{"CAST(NULL AS ARRAY<INT64>)", gcvctor.ArrayCodeTypedNull(sppb.TypeCode_INT64)},
+		{
+			"CAST(NULL AS STRUCT<foo INT64>)",
+			gcvctor.TypedNull(must(typector.NameCodeSlicesToStructType([]string{"foo"}, []sppb.TypeCode{sppb.TypeCode_INT64}))),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
