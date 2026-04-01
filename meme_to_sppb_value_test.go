@@ -1,8 +1,8 @@
 package memebridge_test
 
 import (
+	"errors"
 	"fmt"
-	"strings"
 	"testing"
 
 	"cloud.google.com/go/spanner"
@@ -140,7 +140,7 @@ func TestMemefishExprToGCV_EmptyArrayWithoutTypeReturnsError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for typeless empty array literal")
 	}
-	if !strings.Contains(err.Error(), "cannot infer element type for empty array literal without explicit type") {
+	if !errors.Is(err, memebridge.ErrCannotInferArrayElementType) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }

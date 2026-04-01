@@ -20,7 +20,10 @@ import (
 
 const commitTimestampPlaceholderString = "spanner.commit_timestamp()"
 
-var zeroGCV spanner.GenericColumnValue
+var (
+	ErrCannotInferArrayElementType = errors.New("cannot infer element type for empty array literal without explicit type")
+	zeroGCV                       spanner.GenericColumnValue
+)
 
 func typelessStructLiteralArgToNameWithGCV(arg ast.TypelessStructLiteralArg) (string, spanner.GenericColumnValue, error) {
 	switch a := arg.(type) {
@@ -146,7 +149,7 @@ func MemefishExprToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
 			typ = gcvs[0].Type
 		}
 		if typ == nil {
-			return zeroGCV, errors.New("cannot infer element type for empty array literal without explicit type")
+			return zeroGCV, ErrCannotInferArrayElementType
 		}
 
 		return spanner.GenericColumnValue{
