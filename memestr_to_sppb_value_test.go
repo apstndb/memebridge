@@ -156,7 +156,7 @@ func TestParseExpr_Numeric(t *testing.T) {
 				t.Errorf("should not fail, but err: %v", err)
 			}
 
-			if diff := cmp.Diff(typector.CodeToSimpleType(sppb.TypeCode_NUMERIC), got.Type, protocmp.Transform()); diff != "" {
+			if diff := cmp.Diff(typector.Numeric(), got.Type, protocmp.Transform()); diff != "" {
 				t.Errorf("type mismatch (-want +got):\n%s", diff)
 			}
 
