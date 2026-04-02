@@ -23,63 +23,63 @@ func TestMemefishExprToGCV(t *testing.T) {
 	}{
 		{&ast.BoolLiteral{Value: true},
 			spanner.GenericColumnValue{
-				Type:  typector.CodeToSimpleType(sppb.TypeCode_BOOL),
+				Type:  typector.Bool(),
 				Value: structpb.NewBoolValue(true),
 			},
 		},
 		{&ast.IntLiteral{Value: "42", Base: 10},
 			spanner.GenericColumnValue{
-				Type:  typector.CodeToSimpleType(sppb.TypeCode_INT64),
+				Type:  typector.Int64(),
 				Value: structpb.NewStringValue("42"),
 			},
 		},
 		{&ast.FloatLiteral{Value: "3.14"},
 			spanner.GenericColumnValue{
-				Type:  typector.CodeToSimpleType(sppb.TypeCode_FLOAT64),
+				Type:  typector.Float64(),
 				Value: structpb.NewNumberValue(3.14),
 			},
 		},
 		/* TODO: Support FLOAT32
 		{&ast.FloatLiteral{Value: "3.14"},
 			spanner.GenericColumnValue{
-				Type:  typector.CodeToSimpleType(sppb.TypeCode_FLOAT32),
+				Type:  typector.Float32(),
 				Value: structpb.NewNumberValue(3.14),
 			},
 		},
 		*/
 		{&ast.TimestampLiteral{Value: &ast.StringLiteral{Value: `2024-01-01T00:00:00Z`}},
 			spanner.GenericColumnValue{
-				Type:  typector.CodeToSimpleType(sppb.TypeCode_TIMESTAMP),
+				Type:  typector.Timestamp(),
 				Value: structpb.NewStringValue(`2024-01-01T00:00:00Z`),
 			},
 		},
 		{&ast.DateLiteral{Value: &ast.StringLiteral{Value: `2024-01-01`}},
 			spanner.GenericColumnValue{
-				Type:  typector.CodeToSimpleType(sppb.TypeCode_DATE),
+				Type:  typector.Date(),
 				Value: structpb.NewStringValue(`2024-01-01`),
 			},
 		},
 		{&ast.StringLiteral{Value: `foo`},
 			spanner.GenericColumnValue{
-				Type:  typector.CodeToSimpleType(sppb.TypeCode_STRING),
+				Type:  typector.String(),
 				Value: structpb.NewStringValue(`foo`),
 			},
 		},
 		{&ast.BytesLiteral{Value: []byte(`foo`)},
 			spanner.GenericColumnValue{
-				Type:  typector.CodeToSimpleType(sppb.TypeCode_BYTES),
+				Type:  typector.Bytes(),
 				Value: structpb.NewStringValue(`Zm9v`),
 			},
 		},
 		{&ast.NumericLiteral{Value: &ast.StringLiteral{Value: "1234567890.123456789"}},
 			spanner.GenericColumnValue{
-				Type:  typector.CodeToSimpleType(sppb.TypeCode_NUMERIC),
+				Type:  typector.Numeric(),
 				Value: structpb.NewStringValue("1234567890.123456789"),
 			},
 		},
 		{&ast.JSONLiteral{Value: &ast.StringLiteral{Value: `{"string_value": "foo"}`}},
 			spanner.GenericColumnValue{
-				Type:  typector.CodeToSimpleType(sppb.TypeCode_JSON),
+				Type:  typector.JSON(),
 				Value: structpb.NewStringValue(`{"string_value": "foo"}`),
 			},
 		},
@@ -110,14 +110,14 @@ func TestMemefishExprToGCV(t *testing.T) {
 		// TODO: STRUCT, PROTO, ENUM
 		{&ast.ParenExpr{Expr: &ast.IntLiteral{Value: "42", Base: 10}},
 			spanner.GenericColumnValue{
-				Type:  typector.CodeToSimpleType(sppb.TypeCode_INT64),
+				Type:  typector.Int64(),
 				Value: structpb.NewStringValue("42"),
 			},
 		},
 
 		{&ast.CallExpr{Func: &ast.Path{Idents: []*ast.Ident{{Name: "PENDING_COMMIT_TIMESTAMP"}}}},
 			spanner.GenericColumnValue{
-				Type:  typector.CodeToSimpleType(sppb.TypeCode_TIMESTAMP),
+				Type:  typector.Timestamp(),
 				Value: structpb.NewStringValue("spanner.commit_timestamp()"),
 			},
 		},

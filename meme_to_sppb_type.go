@@ -77,7 +77,7 @@ func MemefishTypeToSpannerpbType(typ ast.Type) (*sppb.Type, error) {
 		if len(t.Path) == 1 {
 			switch strings.ToUpper(t.Path[0].Name) {
 			case "UUID":
-				return typector.CodeToSimpleType(sppb.TypeCode_UUID), nil
+				return typector.UUID(), nil
 			}
 		}
 		return nil, fmt.Errorf("not known whether the named type is STRUCT or ENUM: %s", t.SQL())
