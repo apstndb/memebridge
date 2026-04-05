@@ -147,8 +147,8 @@ func MemefishExprToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
 			if err != nil {
 				return zeroGCV, err
 			}
-		} else if len(gcvs) > 0 {
-			typ = gcvs[0].Type
+		} else {
+			typ = inferArrayElementType(gcvs)
 		}
 		if typ == nil {
 			return zeroGCV, ErrCannotInferArrayElementType
@@ -230,6 +230,15 @@ func memefishCastExprToGCV(cast *ast.CastExpr) (spanner.GenericColumnValue, erro
 		return zeroGCV, fmt.Errorf("unsupported type: %v", destType.GetCode())
 	}
 	return zeroGCV, fmt.Errorf("unsupported expr for %v: %v", destType.GetCode(), cast.Expr.SQL())
+}
+
+func inferArrayElementType(gcvs []spanner.GenericColumnValue) *sppb.Type {
+	for _, gcv := range gcvs {
+		if !spanvalue.IsNull(gcv) {
+			return gcv.Type
+		}
+	}
+	return nil
 }
 
 func arrayLiteralValueOf(elemType *sppb.Type, gcvs []spanner.GenericColumnValue) (spanner.GenericColumnValue, error) {

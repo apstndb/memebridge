@@ -107,6 +107,21 @@ func TestMemefishExprToGCV(t *testing.T) {
 				Value: structpb.NewListValue(&structpb.ListValue{Values: []*structpb.Value{structpb.NewStringValue("1")}}),
 			},
 		},
+		{&ast.ArrayLiteral{
+			Type: nil,
+			Values: []ast.Expr{
+				&ast.NullLiteral{},
+				&ast.StringLiteral{Value: "foo"},
+			},
+		},
+			spanner.GenericColumnValue{
+				Type: typector.ElemTypeToArrayType(typector.String()),
+				Value: structpb.NewListValue(&structpb.ListValue{Values: []*structpb.Value{
+					structpb.NewNullValue(),
+					structpb.NewStringValue("foo"),
+				}}),
+			},
+		},
 		// TODO: STRUCT, PROTO, ENUM
 		{&ast.ParenExpr{Expr: &ast.IntLiteral{Value: "42", Base: 10}},
 			spanner.GenericColumnValue{
@@ -139,6 +154,21 @@ func TestMemefishExprToGCV_EmptyArrayWithoutTypeReturnsError(t *testing.T) {
 	_, err := memebridge.MemefishExprToGCV(&ast.ArrayLiteral{})
 	if err == nil {
 		t.Fatal("expected error for typeless empty array literal")
+	}
+	if !errors.Is(err, memebridge.ErrCannotInferArrayElementType) {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestMemefishExprToGCV_AllNullArrayWithoutTypeReturnsError(t *testing.T) {
+	_, err := memebridge.MemefishExprToGCV(&ast.ArrayLiteral{
+		Values: []ast.Expr{
+			&ast.NullLiteral{},
+			&ast.NullLiteral{},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected error for typeless all-null array literal")
 	}
 	if !errors.Is(err, memebridge.ErrCannotInferArrayElementType) {
 		t.Fatalf("unexpected error: %v", err)
