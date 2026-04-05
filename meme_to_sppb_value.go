@@ -8,9 +8,11 @@ import (
 	"strconv"
 
 	"github.com/apstndb/spantype/typector"
+	"github.com/apstndb/spanvalue"
 	"github.com/apstndb/spanvalue/gcvctor"
 	"github.com/cloudspannerecosystem/memefish/char"
 	"github.com/samber/lo"
+	"google.golang.org/protobuf/proto"
 
 	"cloud.google.com/go/spanner"
 	sppb "cloud.google.com/go/spanner/apiv1/spannerpb"
@@ -84,7 +86,7 @@ func astStructLiteralsToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
 		return zeroGCV, fmt.Errorf("expr is not struct literal: %v", e)
 	}
 
-	return gcvctor.StructValue(names, gcvs)
+	return gcvctor.StructValueOf(names, gcvs)
 }
 
 func extractValues(expr ast.Expr) ([]ast.Expr, error) {
@@ -102,7 +104,7 @@ func MemefishExprToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
 	switch e := expr.(type) {
 	case *ast.NullLiteral:
 		// emulate behavior of query parameter with unknown type as INT64
-		return gcvctor.SimpleTypedNull(sppb.TypeCode_INT64), nil
+		return gcvctor.NullOf(typector.Int64()), nil
 	case *ast.BoolLiteral:
 		return gcvctor.BoolValue(e.Value), nil
 	case *ast.IntLiteral:
@@ -122,13 +124,13 @@ func MemefishExprToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
 	case *ast.BytesLiteral:
 		return gcvctor.BytesValue(e.Value), nil
 	case *ast.DateLiteral:
-		return gcvctor.StringBasedValue(sppb.TypeCode_DATE, e.Value.Value), nil
+		return gcvctor.StringBasedValueFromCode(sppb.TypeCode_DATE, e.Value.Value), nil
 	case *ast.TimestampLiteral:
-		return gcvctor.StringBasedValue(sppb.TypeCode_TIMESTAMP, e.Value.Value), nil
+		return gcvctor.StringBasedValueFromCode(sppb.TypeCode_TIMESTAMP, e.Value.Value), nil
 	case *ast.NumericLiteral:
-		return gcvctor.StringBasedValue(sppb.TypeCode_NUMERIC, e.Value.Value), nil
+		return gcvctor.StringBasedValueFromCode(sppb.TypeCode_NUMERIC, e.Value.Value), nil
 	case *ast.JSONLiteral:
-		return gcvctor.StringBasedValue(sppb.TypeCode_JSON, e.Value.Value), nil
+		return gcvctor.StringBasedValueFromCode(sppb.TypeCode_JSON, e.Value.Value), nil
 	case *ast.ArrayLiteral:
 		gcvs, err := lo.MapErr(e.Values, func(expr ast.Expr, _ int) (spanner.GenericColumnValue, error) {
 			return MemefishExprToGCV(expr)
@@ -152,12 +154,7 @@ func MemefishExprToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
 			return zeroGCV, ErrCannotInferArrayElementType
 		}
 
-		return spanner.GenericColumnValue{
-			Type: typector.ElemTypeToArrayType(typ),
-			Value: structpb.NewListValue(&structpb.ListValue{Values: lo.Map(gcvs, func(gcv spanner.GenericColumnValue, _ int) *structpb.Value {
-				return gcvToValue(gcv)
-			})}),
-		}, nil
+		return arrayLiteralValueOf(typ, gcvs)
 	case *ast.TypelessStructLiteral,
 		*ast.TupleStructLiteral,
 		*ast.TypedStructLiteral:
@@ -170,7 +167,7 @@ func MemefishExprToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
 		return memefishCastExprToGCV(e)
 	case *ast.CallExpr:
 		if len(e.Func.Idents) == 1 && char.EqualFold(e.Func.Idents[0].Name, "PENDING_COMMIT_TIMESTAMP") {
-			return gcvctor.StringBasedValue(sppb.TypeCode_TIMESTAMP, commitTimestampPlaceholderString), nil
+			return gcvctor.StringBasedValueFromCode(sppb.TypeCode_TIMESTAMP, commitTimestampPlaceholderString), nil
 		}
 		// break
 	default:
@@ -187,7 +184,7 @@ func memefishCastExprToGCV(cast *ast.CastExpr) (spanner.GenericColumnValue, erro
 	}
 
 	if _, ok := cast.Expr.(*ast.NullLiteral); ok {
-		return gcvctor.TypedNull(destType), nil
+		return gcvctor.NullOf(destType), nil
 	}
 
 	// Prioritize types without literals
@@ -227,12 +224,35 @@ func memefishCastExprToGCV(cast *ast.CastExpr) (spanner.GenericColumnValue, erro
 	case sppb.TypeCode_UUID, sppb.TypeCode_INTERVAL:
 		switch e := cast.Expr.(type) {
 		case *ast.StringLiteral:
-			return gcvctor.StringBasedValue(destType.GetCode(), e.Value), nil
+			return gcvctor.StringBasedValueFromCode(destType.GetCode(), e.Value), nil
 		}
 	default:
 		return zeroGCV, fmt.Errorf("unsupported type: %v", destType.GetCode())
 	}
 	return zeroGCV, fmt.Errorf("unsupported expr for %v: %v", destType.GetCode(), cast.Expr.SQL())
+}
+
+func arrayLiteralValueOf(elemType *sppb.Type, gcvs []spanner.GenericColumnValue) (spanner.GenericColumnValue, error) {
+	normalized := make([]spanner.GenericColumnValue, len(gcvs))
+	for i, gcv := range gcvs {
+		if spanvalue.IsNull(gcv) {
+			normalized[i] = gcvctor.NullOf(elemType)
+			continue
+		}
+		if !proto.Equal(gcv.Type, elemType) {
+			// Preserve the current permissive behavior for explicit-typed arrays
+			// that may rely on coercion memebridge does not model yet.
+			return spanner.GenericColumnValue{
+				Type: typector.ElemTypeToArrayType(elemType),
+				Value: structpb.NewListValue(&structpb.ListValue{Values: lo.Map(gcvs, func(gcv spanner.GenericColumnValue, _ int) *structpb.Value {
+					return gcvToValue(gcv)
+				})}),
+			}, nil
+		}
+		normalized[i] = gcv
+	}
+
+	return gcvctor.ArrayValueOf(elemType, normalized...)
 }
 
 func nameOrEmpty(f *ast.StructField) string {
