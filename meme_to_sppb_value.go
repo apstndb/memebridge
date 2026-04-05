@@ -23,7 +23,7 @@ import (
 const commitTimestampPlaceholderString = "spanner.commit_timestamp()"
 
 var (
-	ErrCannotInferArrayElementType = errors.New("cannot infer element type for empty array literal without explicit type")
+	ErrCannotInferArrayElementType = errors.New("cannot infer element type for array literal without explicit type")
 	zeroGCV                        spanner.GenericColumnValue
 )
 
@@ -249,8 +249,9 @@ func arrayLiteralValueOf(elemType *sppb.Type, gcvs []spanner.GenericColumnValue)
 			continue
 		}
 		if !proto.Equal(gcv.Type, elemType) {
-			// Preserve the current permissive behavior for explicit-typed arrays
-			// that may rely on coercion memebridge does not model yet.
+			// Preserve the current permissive behavior for array literals whose
+			// element values do not all match elemType, including cases where
+			// elemType was inferred and memebridge does not model coercion yet.
 			return spanner.GenericColumnValue{
 				Type: typector.ElemTypeToArrayType(elemType),
 				Value: structpb.NewListValue(&structpb.ListValue{Values: lo.Map(gcvs, func(gcv spanner.GenericColumnValue, _ int) *structpb.Value {
