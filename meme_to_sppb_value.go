@@ -8,7 +8,6 @@ import (
 	"strconv"
 
 	"github.com/apstndb/spantype/typector"
-	"github.com/apstndb/spanvalue"
 	"github.com/apstndb/spanvalue/gcvctor"
 	"github.com/cloudspannerecosystem/memefish/char"
 	"github.com/samber/lo"
@@ -149,7 +148,7 @@ func MemefishExprToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
 				return zeroGCV, err
 			}
 		} else {
-			typ = inferArrayElementType(gcvs)
+			typ = inferArrayElementType(e.Values, gcvs)
 		}
 		if typ == nil {
 			return zeroGCV, ErrCannotInferArrayElementType
@@ -233,11 +232,12 @@ func memefishCastExprToGCV(cast *ast.CastExpr) (spanner.GenericColumnValue, erro
 	return zeroGCV, fmt.Errorf("unsupported expr for %v: %v", destType.GetCode(), cast.Expr.SQL())
 }
 
-func inferArrayElementType(gcvs []spanner.GenericColumnValue) *sppb.Type {
-	for _, gcv := range gcvs {
-		if !spanvalue.IsNull(gcv) {
-			return gcv.Type
+func inferArrayElementType(exprs []ast.Expr, gcvs []spanner.GenericColumnValue) *sppb.Type {
+	for i, expr := range exprs {
+		if _, ok := expr.(*ast.NullLiteral); ok {
+			continue
 		}
+		return gcvs[i].Type
 	}
 	return nil
 }
