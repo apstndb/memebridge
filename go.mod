@@ -5,8 +5,8 @@ go 1.23.2
 require (
 	cloud.google.com/go v0.121.4
 	cloud.google.com/go/spanner v1.84.1
-	github.com/apstndb/spantype v0.3.9
-	github.com/apstndb/spanvalue v0.1.10
+	github.com/apstndb/spantype v0.3.11
+	github.com/apstndb/spanvalue v0.3.0
 	github.com/cloudspannerecosystem/memefish v0.6.2
 	github.com/google/go-cmp v0.7.0
 	github.com/samber/lo v1.53.0
@@ -18,6 +18,8 @@ require (
 	cloud.google.com/go/auth v0.16.3 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.7.0 // indirect
+	cloud.google.com/go/iam v1.5.2 // indirect
+	cloud.google.com/go/longrunning v0.6.7 // indirect
 	cloud.google.com/go/monitoring v1.24.2 // indirect
 	github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp v1.5.3 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.27.0 // indirect
