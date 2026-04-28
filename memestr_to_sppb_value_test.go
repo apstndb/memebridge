@@ -52,6 +52,7 @@ func TestParseExpr(t *testing.T) {
 		// Note: Usually, JSON representation is not stable.
 		{`JSON '{"foo":"bar"}'`, must(gcvctor.JSONValue(map[string]string{"foo": "bar"}))},
 		{`[1, 2, 3]`, must(gcvctor.ArrayValue(gcvctor.Int64Value(1), gcvctor.Int64Value(2), gcvctor.Int64Value(3)))},
+		{`ARRAY<INT64>[1]`, must(gcvctor.ArrayValueOf(typector.Int64(), gcvctor.Int64Value(1)))},
 		{`["foo", NULL]`, must(gcvctor.ArrayValueOf(typector.String(), gcvctor.StringValue("foo"), gcvctor.NullOf(typector.String())))},
 		{
 			`(1, "foo", 3.14)`,

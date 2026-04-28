@@ -142,6 +142,8 @@ func MemefishExprToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
 		// TODO: May be more correct if it can detect common super type of gcvs[].Type
 		var typ *sppb.Type
 		if e.Type != nil {
+			// memefish stores the explicit type from ARRAY<T>[...] as the element type T,
+			// so MemefishTypeToSpannerpbType already returns the correct elemType here.
 			typ, err = MemefishTypeToSpannerpbType(e.Type)
 			if err != nil {
 				return zeroGCV, err
