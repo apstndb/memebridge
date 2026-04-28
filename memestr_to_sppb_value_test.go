@@ -1,6 +1,7 @@
 package memebridge_test
 
 import (
+	"errors"
 	"math"
 	"math/big"
 	"testing"
@@ -168,5 +169,15 @@ func TestParseExpr_Numeric(t *testing.T) {
 				t.Errorf("mismatch want: %v, got: %v", tt.want, gotRat)
 			}
 		})
+	}
+}
+
+func TestParseExpr_AllParenthesizedNullArrayWithoutTypeReturnsError(t *testing.T) {
+	_, err := memebridge.ParseExpr("", "[(NULL)]")
+	if err == nil {
+		t.Fatal("expected error for typeless all-null array literal")
+	}
+	if !errors.Is(err, memebridge.ErrCannotInferArrayElementType) {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }

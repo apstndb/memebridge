@@ -235,12 +235,22 @@ func memefishCastExprToGCV(cast *ast.CastExpr) (spanner.GenericColumnValue, erro
 
 func inferArrayElementType(exprs []ast.Expr, gcvs []spanner.GenericColumnValue) *sppb.Type {
 	for i, expr := range exprs {
-		if _, ok := expr.(*ast.NullLiteral); ok {
+		if _, ok := unwrapParenExpr(expr).(*ast.NullLiteral); ok {
 			continue
 		}
 		return gcvs[i].Type
 	}
 	return nil
+}
+
+func unwrapParenExpr(expr ast.Expr) ast.Expr {
+	for {
+		paren, ok := expr.(*ast.ParenExpr)
+		if !ok {
+			return expr
+		}
+		expr = paren.Expr
+	}
 }
 
 func arrayLiteralValueOf(elemType *sppb.Type, gcvs []spanner.GenericColumnValue) (spanner.GenericColumnValue, error) {
