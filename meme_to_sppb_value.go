@@ -287,5 +287,8 @@ func nameOrEmpty(f *ast.StructField) string {
 }
 
 func gcvToValue(gcv spanner.GenericColumnValue) *structpb.Value {
+	if gcv.Value == nil {
+		return structpb.NewNullValue()
+	}
 	return gcv.Value
 }
