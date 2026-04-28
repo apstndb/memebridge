@@ -234,6 +234,8 @@ func memefishCastExprToGCV(cast *ast.CastExpr) (spanner.GenericColumnValue, erro
 }
 
 func inferArrayElementType(exprs []ast.Expr, gcvs []spanner.GenericColumnValue) *sppb.Type {
+	// exprs and gcvs are derived from the same ArrayLiteral.Values slice, so
+	// their indexes stay aligned here.
 	for i, expr := range exprs {
 		if _, ok := unwrapParenExpr(expr).(*ast.NullLiteral); ok {
 			continue
@@ -261,8 +263,11 @@ func arrayLiteralValueOf(elemType *sppb.Type, gcvs []spanner.GenericColumnValue)
 		}
 
 		// Preserve the current permissive behavior for array literals whose
-		// element values do not all match elemType, including cases where
-		// elemType was inferred and memebridge does not model coercion yet.
+		// element values do not all match elemType. This intentionally keeps the
+		// original element wire values even when they disagree with elemType,
+		// because memebridge does not model array coercion yet and tightening this
+		// path would change the pre-v0.3 behavior that downstream callers already
+		// rely on.
 		return spanner.GenericColumnValue{
 			Type: typector.ElemTypeToArrayType(elemType),
 			Value: structpb.NewListValue(&structpb.ListValue{Values: lo.Map(gcvs, func(gcv spanner.GenericColumnValue, _ int) *structpb.Value {
