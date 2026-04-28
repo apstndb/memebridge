@@ -12,7 +12,6 @@ import (
 	"github.com/apstndb/spanvalue/gcvctor"
 	"github.com/cloudspannerecosystem/memefish/char"
 	"github.com/samber/lo"
-	"google.golang.org/protobuf/proto"
 
 	"cloud.google.com/go/spanner"
 	sppb "cloud.google.com/go/spanner/apiv1/spannerpb"
@@ -242,24 +241,21 @@ func inferArrayElementType(gcvs []spanner.GenericColumnValue) *sppb.Type {
 }
 
 func arrayLiteralValueOf(elemType *sppb.Type, gcvs []spanner.GenericColumnValue) (spanner.GenericColumnValue, error) {
-	normalized := make([]spanner.GenericColumnValue, len(gcvs))
-	for i, gcv := range gcvs {
-		if spanvalue.IsNull(gcv) {
-			normalized[i] = gcvctor.NullOf(elemType)
-			continue
+	normalized, err := gcvctor.NormalizeArrayElements(elemType, gcvs...)
+	if err != nil {
+		if !errors.Is(err, gcvctor.ErrTypeMismatch) {
+			return zeroGCV, err
 		}
-		if !proto.Equal(gcv.Type, elemType) {
-			// Preserve the current permissive behavior for array literals whose
-			// element values do not all match elemType, including cases where
-			// elemType was inferred and memebridge does not model coercion yet.
-			return spanner.GenericColumnValue{
-				Type: typector.ElemTypeToArrayType(elemType),
-				Value: structpb.NewListValue(&structpb.ListValue{Values: lo.Map(gcvs, func(gcv spanner.GenericColumnValue, _ int) *structpb.Value {
-					return gcvToValue(gcv)
-				})}),
-			}, nil
-		}
-		normalized[i] = gcv
+
+		// Preserve the current permissive behavior for array literals whose
+		// element values do not all match elemType, including cases where
+		// elemType was inferred and memebridge does not model coercion yet.
+		return spanner.GenericColumnValue{
+			Type: typector.ElemTypeToArrayType(elemType),
+			Value: structpb.NewListValue(&structpb.ListValue{Values: lo.Map(gcvs, func(gcv spanner.GenericColumnValue, _ int) *structpb.Value {
+				return gcvToValue(gcv)
+			})}),
+		}, nil
 	}
 
 	return gcvctor.ArrayValueOf(elemType, normalized...)
