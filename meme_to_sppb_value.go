@@ -137,8 +137,9 @@ func MemefishExprToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
 			return zeroGCV, err
 		}
 
-		// ARRAY<Type> has more precedence than element type
-		// TODO: May be more correct if it can detect common super type of gcvs[].Type
+		// An explicit ARRAY<T> annotation takes precedence; otherwise infer from
+		// the first expression that carries type information.
+		// TODO: Detect a common supertype instead of picking the first typed element.
 		var typ *sppb.Type
 		if e.Type != nil {
 			// memefish stores the explicit type from ARRAY<T>[...] as the element type T,
