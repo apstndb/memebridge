@@ -95,7 +95,7 @@ func castGCVToBool(src spanner.GenericColumnValue, exprSQL string) (spanner.Gene
 		case strings.EqualFold(v, "false"):
 			return gcvctor.BoolValue(false), nil
 		default:
-			return zeroGCV, fmt.Errorf("invalid BOOL literal for cast: %q", v)
+			return zeroGCV, fmt.Errorf("invalid BOOL literal for cast of %s to BOOL: %q", exprSQL, v)
 		}
 	default:
 		return zeroGCV, unsupportedCastError(src.Type.GetCode(), sppb.TypeCode_BOOL, exprSQL)
@@ -204,6 +204,16 @@ func castGCVToNumeric(src spanner.GenericColumnValue, exprSQL string) (spanner.G
 			return zeroGCV, err
 		}
 		return gcvctor.NumericValueChecked(big.NewRat(v, 1))
+	case sppb.TypeCode_STRING:
+		v, err := stringFromGCV(src)
+		if err != nil {
+			return zeroGCV, err
+		}
+		n, ok := new(big.Rat).SetString(v)
+		if !ok {
+			return zeroGCV, fmt.Errorf("invalid NUMERIC literal for cast of %s to NUMERIC: %q", exprSQL, v)
+		}
+		return gcvctor.NumericValueChecked(n)
 	default:
 		return zeroGCV, unsupportedCastError(src.Type.GetCode(), sppb.TypeCode_NUMERIC, exprSQL)
 	}
@@ -217,12 +227,22 @@ func castGCVToString(src spanner.GenericColumnValue, exprSQL string) (spanner.Ge
 			return zeroGCV, err
 		}
 		return gcvctor.StringValue(strconv.FormatBool(v)), nil
-	case sppb.TypeCode_INT64, sppb.TypeCode_DATE:
+	case sppb.TypeCode_INT64,
+		sppb.TypeCode_DATE,
+		sppb.TypeCode_TIMESTAMP,
+		sppb.TypeCode_UUID,
+		sppb.TypeCode_INTERVAL:
 		v, err := stringFromGCV(src)
 		if err != nil {
 			return zeroGCV, err
 		}
 		return gcvctor.StringValue(v), nil
+	case sppb.TypeCode_NUMERIC:
+		v, err := stringFromGCV(src)
+		if err != nil {
+			return zeroGCV, err
+		}
+		return gcvctor.StringValue(formatNumericString(v)), nil
 	case sppb.TypeCode_FLOAT32:
 		v, err := float64FromGCV(src, 32)
 		if err != nil {
@@ -241,7 +261,7 @@ func castGCVToString(src spanner.GenericColumnValue, exprSQL string) (spanner.Ge
 			return zeroGCV, err
 		}
 		if !utf8.Valid(v) {
-			return zeroGCV, fmt.Errorf("invalid UTF-8 bytes for STRING cast")
+			return zeroGCV, fmt.Errorf("invalid UTF-8 bytes for STRING cast in expression %q", exprSQL)
 		}
 		return gcvctor.StringValue(string(v)), nil
 	default:
@@ -370,13 +390,21 @@ func parseSpannerFloat(v string, bitSize int) (float64, error) {
 
 func roundFloatToInt64(v float64) (int64, error) {
 	if math.IsNaN(v) || math.IsInf(v, 0) {
-		return 0, fmt.Errorf("cannot cast non-finite FLOAT64 to INT64: %v", v)
+		return 0, fmt.Errorf("cannot cast non-finite floating-point value to INT64: %v", v)
 	}
 	rounded := math.Round(v)
 	if rounded < minInt64Float || rounded >= maxInt64FloatExclusive {
-		return 0, fmt.Errorf("FLOAT64 value out of INT64 range: %v", v)
+		return 0, fmt.Errorf("floating-point value out of INT64 range: %v", v)
 	}
 	return int64(rounded), nil
+}
+
+func formatNumericString(v string) string {
+	if !strings.Contains(v, ".") {
+		return v
+	}
+	v = strings.TrimRight(v, "0")
+	return strings.TrimSuffix(v, ".")
 }
 
 func formatSpannerFloat(v float64, bitSize int) string {

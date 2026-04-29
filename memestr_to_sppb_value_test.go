@@ -86,6 +86,7 @@ func TestParseExpr(t *testing.T) {
 		{`CAST(42 AS FLOAT64)`, gcvctor.Float64Value(42)},
 		{`CAST(42 AS NUMERIC)`, gcvctor.NumericValue(big.NewRat(42, 1))},
 		{`CAST(42 AS STRING)`, gcvctor.StringValue("42")},
+		{`CAST(NUMERIC "3.140000000" AS STRING)`, gcvctor.StringValue("3.14")},
 		{`CAST("TrUe" AS BOOL)`, gcvctor.BoolValue(true)},
 		{`CAST("123" AS INT64)`, gcvctor.Int64Value(123)},
 		{`CAST("0x123" AS INT64)`, gcvctor.Int64Value(291)},
@@ -93,11 +94,13 @@ func TestParseExpr(t *testing.T) {
 		{`CAST(1.5 AS INT64)`, gcvctor.Int64Value(2)},
 		{`CAST(-0.5 AS INT64)`, gcvctor.Int64Value(-1)},
 		{`CAST("3.5" AS FLOAT64)`, gcvctor.Float64Value(3.5)},
+		{`CAST("3.14" AS NUMERIC)`, gcvctor.NumericValue(big.NewRat(314, 100))},
 		{`CAST("inf" AS FLOAT64)`, gcvctor.Float64Value(math.Inf(1))},
 		{`CAST("foo" AS BYTES)`, gcvctor.BytesValue([]byte("foo"))},
 		{`CAST(b"foo" AS STRING)`, gcvctor.StringValue("foo")},
 		{`CAST("1970-01-01" AS DATE)`, gcvctor.DateValue(civil.Date{Year: 1970, Month: time.January, Day: 1})},
 		{`CAST("1970-01-01T00:00:00Z" AS TIMESTAMP)`, gcvctor.TimestampValue(time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC))},
+		{`CAST(TIMESTAMP "1970-01-01T00:00:00Z" AS STRING)`, gcvctor.StringValue("1970-01-01T00:00:00Z")},
 		{`CAST([1] AS ARRAY<INT64>)`, must(gcvctor.ArrayValueOf(typector.Int64(), gcvctor.Int64Value(1)))},
 		{
 			`CAST(STRUCT(1 AS foo) AS STRUCT<foo INT64>)`,
@@ -215,6 +218,7 @@ func TestParseExpr_InvalidCastReturnsError(t *testing.T) {
 	tests := []string{
 		`CAST("maybe" AS BOOL)`,
 		`CAST("12x" AS INT64)`,
+		`CAST("not-a-number" AS NUMERIC)`,
 		`CAST(CAST("nan" AS FLOAT64) AS INT64)`,
 		`CAST(b"\xff" AS STRING)`,
 	}
