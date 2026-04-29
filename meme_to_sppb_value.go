@@ -312,10 +312,31 @@ func coerceArrayElement(elemType *sppb.Type, gcv spanner.GenericColumnValue) (sp
 			}
 			return gcvctor.NumericValueChecked(big.NewRat(v, 1))
 		}
+	case sppb.TypeCode_FLOAT32:
+		return coerceArrayElementToFloat32(gcv)
 	case sppb.TypeCode_FLOAT64:
 		return coerceArrayElementToFloat64(gcv)
 	}
 	return zeroGCV, fmt.Errorf("cannot coerce array element from %v to %v", gcv.Type.GetCode(), elemType.GetCode())
+}
+
+func coerceArrayElementToFloat32(gcv spanner.GenericColumnValue) (spanner.GenericColumnValue, error) {
+	switch gcv.Type.GetCode() {
+	case sppb.TypeCode_INT64:
+		v, err := int64FromGCV(gcv)
+		if err != nil {
+			return zeroGCV, err
+		}
+		return float32ValueFromFloat64(float64(v))
+	case sppb.TypeCode_FLOAT64:
+		v, err := float64FromGCV(gcv, 64)
+		if err != nil {
+			return zeroGCV, err
+		}
+		return float32ValueFromFloat64(v)
+	default:
+		return zeroGCV, fmt.Errorf("cannot coerce array element from %v to FLOAT32", gcv.Type.GetCode())
+	}
 }
 
 func coerceArrayElementToFloat64(gcv spanner.GenericColumnValue) (spanner.GenericColumnValue, error) {

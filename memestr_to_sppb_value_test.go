@@ -76,6 +76,7 @@ func TestParseExpr(t *testing.T) {
 			)),
 		},
 		{`ARRAY<FLOAT64>[1, NUMERIC "2.5"]`, must(gcvctor.ArrayValueOf(typector.Float64(), gcvctor.Float64Value(1), gcvctor.Float64Value(2.5)))},
+		{`ARRAY<FLOAT32>[1, 2.5]`, must(gcvctor.ArrayValueOf(typector.Float32(), gcvctor.Float32Value(1), gcvctor.Float32Value(2.5)))},
 		{
 			`(1, "foo", 3.14)`,
 			must(gcvctor.StructValueOf(
