@@ -13,6 +13,7 @@ import (
 	sppb "cloud.google.com/go/spanner/apiv1/spannerpb"
 	"github.com/apstndb/spanvalue/gcvctor"
 	"github.com/cloudspannerecosystem/memefish/ast"
+	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 )
@@ -145,13 +146,13 @@ func castGCVToFloat32(src spanner.GenericColumnValue, exprSQL string) (spanner.G
 		if err != nil {
 			return zeroGCV, err
 		}
-		return gcvctor.Float32Value(float32(v)), nil
+		return float32ValueFromFloat64(float64(v))
 	case sppb.TypeCode_FLOAT64, sppb.TypeCode_FLOAT32:
 		v, err := float64FromGCV(src, 32)
 		if err != nil {
 			return zeroGCV, err
 		}
-		return gcvctor.Float32Value(float32(v)), nil
+		return float32ValueFromFloat64(v)
 	case sppb.TypeCode_STRING:
 		v, err := stringFromGCV(src)
 		if err != nil {
@@ -161,7 +162,7 @@ func castGCVToFloat32(src spanner.GenericColumnValue, exprSQL string) (spanner.G
 		if err != nil {
 			return zeroGCV, err
 		}
-		return gcvctor.Float32Value(float32(f)), nil
+		return float32ValueFromFloat64(f)
 	default:
 		return zeroGCV, unsupportedCastError(src.Type.GetCode(), sppb.TypeCode_FLOAT32, exprSQL)
 	}
@@ -320,7 +321,19 @@ func castStringBasedGCV(src spanner.GenericColumnValue, destCode sppb.TypeCode, 
 	if err != nil {
 		return zeroGCV, err
 	}
-	return gcvctor.StringBasedValueFromCode(destCode, strings.TrimSpace(v)), nil
+	v = strings.TrimSpace(v)
+	switch destCode {
+	case sppb.TypeCode_UUID:
+		u, err := uuid.Parse(v)
+		if err != nil || !strings.EqualFold(u.String(), v) {
+			return zeroGCV, fmt.Errorf("invalid UUID literal for cast of %s to UUID: %q", exprSQL, v)
+		}
+		return gcvctor.UUIDValue(u), nil
+	case sppb.TypeCode_INTERVAL:
+		return gcvctor.IntervalStringValue(v)
+	default:
+		return gcvctor.StringBasedValueFromCode(destCode, v), nil
+	}
 }
 
 func isNullGCV(gcv spanner.GenericColumnValue) bool {
@@ -398,6 +411,14 @@ func parseSpannerFloat(v string, bitSize int) (float64, error) {
 	default:
 		return strconv.ParseFloat(v, bitSize)
 	}
+}
+
+func float32ValueFromFloat64(v float64) (spanner.GenericColumnValue, error) {
+	f32 := float32(v)
+	if !math.IsInf(v, 0) && math.IsInf(float64(f32), 0) {
+		return zeroGCV, fmt.Errorf("FLOAT64 value out of FLOAT32 range: %v", v)
+	}
+	return gcvctor.Float32Value(f32), nil
 }
 
 func roundFloatToInt64(v float64) (int64, error) {

@@ -136,7 +136,7 @@ func TestParseExpr(t *testing.T) {
 
 		{"PENDING_COMMIT_TIMESTAMP()", gcvctor.StringBasedValueFromCode(sppb.TypeCode_TIMESTAMP, "spanner.commit_timestamp()")},
 
-		{`CAST("P1Y2M3DT4H5M6.5S" AS INTERVAL)`, gcvctor.StringBasedValueFromCode(sppb.TypeCode_INTERVAL, `P1Y2M3DT4H5M6.5S`)},
+		{`CAST("P1Y2M3DT4H5M6.5S" AS INTERVAL)`, must(gcvctor.IntervalStringValue(`P1Y2M3DT4H5M6.5S`))},
 		{"CAST(NULL AS INTERVAL)", gcvctor.NullOf(typector.Interval())},
 
 		{"INTERVAL 3 YEAR", gcvctor.StringBasedValueFromCode(sppb.TypeCode_INTERVAL, "P3Y")},
@@ -238,6 +238,9 @@ func TestParseExpr_InvalidCastReturnsError(t *testing.T) {
 		`CAST("1/2" AS NUMERIC)`,
 		`CAST("0x10" AS NUMERIC)`,
 		`CAST("1e2" AS NUMERIC)`,
+		`CAST(1e50 AS FLOAT32)`,
+		`CAST("not-a-uuid" AS UUID)`,
+		`CAST("not-an-interval" AS INTERVAL)`,
 		`CAST(CAST("nan" AS FLOAT64) AS INT64)`,
 		`CAST(b"\xff" AS STRING)`,
 	}
