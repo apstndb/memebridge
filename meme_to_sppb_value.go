@@ -185,24 +185,49 @@ func inferArrayElementType(exprs []ast.Expr, gcvs []spanner.GenericColumnValue) 
 	}
 
 	var first *sppb.Type
-	codes := make([]sppb.TypeCode, 0, len(exprs))
+	var hasInt64, hasNumeric, hasFloat32, hasFloat64, hasOther bool
 	for i, expr := range exprs {
 		if _, ok := unwrapParenExpr(expr).(*ast.NullLiteral); ok {
 			continue
 		}
+		typ := gcvs[i].Type
 		if first == nil {
-			first = gcvs[i].Type
+			first = typ
 		}
-		codes = append(codes, gcvs[i].Type.GetCode())
+		switch typ.GetCode() {
+		case sppb.TypeCode_INT64:
+			hasInt64 = true
+		case sppb.TypeCode_NUMERIC:
+			hasNumeric = true
+		case sppb.TypeCode_FLOAT32:
+			hasFloat32 = true
+		case sppb.TypeCode_FLOAT64:
+			hasFloat64 = true
+		default:
+			hasOther = true
+		}
 	}
 	if first == nil {
 		return typector.Int64()
 	}
-
-	if typ := commonNumericArrayElementType(codes); typ != nil {
-		return typ
+	if hasOther {
+		return first
 	}
-	return first
+
+	switch {
+	case hasFloat64:
+		return typector.Float64()
+	case hasFloat32 && (hasInt64 || hasNumeric):
+		return typector.Float64()
+	case hasFloat32:
+		return typector.Float32()
+	case hasNumeric:
+		return typector.Numeric()
+	case hasInt64:
+		return typector.Int64()
+	default:
+		return first
+	}
 }
 
 func unwrapParenExpr(expr ast.Expr) ast.Expr {
@@ -242,46 +267,6 @@ func arrayLiteralValueOf(elemType *sppb.Type, gcvs []spanner.GenericColumnValue)
 	}
 
 	return gcvctor.ArrayValueOf(elemType, normalized...)
-}
-
-func commonNumericArrayElementType(codes []sppb.TypeCode) *sppb.Type {
-	if len(codes) == 0 {
-		return nil
-	}
-
-	hasInt64 := false
-	hasNumeric := false
-	hasFloat32 := false
-	hasFloat64 := false
-	for _, code := range codes {
-		switch code {
-		case sppb.TypeCode_INT64:
-			hasInt64 = true
-		case sppb.TypeCode_NUMERIC:
-			hasNumeric = true
-		case sppb.TypeCode_FLOAT32:
-			hasFloat32 = true
-		case sppb.TypeCode_FLOAT64:
-			hasFloat64 = true
-		default:
-			return nil
-		}
-	}
-
-	switch {
-	case hasFloat64:
-		return typector.Float64()
-	case hasFloat32 && (hasInt64 || hasNumeric):
-		return typector.Float64()
-	case hasFloat32:
-		return typector.Float32()
-	case hasNumeric:
-		return typector.Numeric()
-	case hasInt64:
-		return typector.Int64()
-	default:
-		return nil
-	}
 }
 
 func coerceArrayElements(elemType *sppb.Type, gcvs []spanner.GenericColumnValue) ([]spanner.GenericColumnValue, error) {
