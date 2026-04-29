@@ -280,8 +280,6 @@ func coerceArrayElements(elemType *sppb.Type, gcvs []spanner.GenericColumnValue)
 			coerced = append(coerced, gcv)
 			continue
 		}
-		// Unsupported coercions intentionally return an error to let
-		// arrayLiteralValueOf preserve the original permissive wire-value fallback.
 		elem, err := coerceArrayElement(elemType, gcv)
 		if err != nil {
 			return nil, err
@@ -292,6 +290,9 @@ func coerceArrayElements(elemType *sppb.Type, gcvs []spanner.GenericColumnValue)
 }
 
 func coerceArrayElement(elemType *sppb.Type, gcv spanner.GenericColumnValue) (spanner.GenericColumnValue, error) {
+	// This is not the full CAST matrix. It only models array literal coercions
+	// that are safe locally; unsupported cases return an error so the caller can
+	// preserve the pre-existing permissive wire-value fallback.
 	switch elemType.GetCode() {
 	case sppb.TypeCode_NUMERIC:
 		if gcv.Type.GetCode() == sppb.TypeCode_INT64 {
