@@ -1,7 +1,6 @@
 package memebridge_test
 
 import (
-	"errors"
 	"math"
 	"math/big"
 	"testing"
@@ -54,8 +53,29 @@ func TestParseExpr(t *testing.T) {
 		{`JSON '{"foo":"bar"}'`, must(gcvctor.JSONValue(map[string]string{"foo": "bar"}))},
 		{`[1, 2, 3]`, must(gcvctor.ArrayValue(gcvctor.Int64Value(1), gcvctor.Int64Value(2), gcvctor.Int64Value(3)))},
 		{`ARRAY<INT64>[1]`, must(gcvctor.ArrayValueOf(typector.Int64(), gcvctor.Int64Value(1)))},
+		{`[NULL, NULL]`, must(gcvctor.ArrayValueOf(typector.Int64(), gcvctor.NullOf(typector.Int64()), gcvctor.NullOf(typector.Int64())))},
 		{`[CAST(NULL AS STRING)]`, must(gcvctor.ArrayValueOf(typector.String(), gcvctor.NullOf(typector.String())))},
 		{`["foo", NULL]`, must(gcvctor.ArrayValueOf(typector.String(), gcvctor.StringValue("foo"), gcvctor.NullOf(typector.String())))},
+		{`[1, 2.5]`, must(gcvctor.ArrayValueOf(typector.Float64(), gcvctor.Float64Value(1), gcvctor.Float64Value(2.5)))},
+		{
+			`[1, NUMERIC "2.5"]`,
+			must(gcvctor.ArrayValueOf(
+				typector.Numeric(),
+				gcvctor.NumericValue(big.NewRat(1, 1)),
+				gcvctor.StringBasedValueFromCode(sppb.TypeCode_NUMERIC, "2.5"),
+			)),
+		},
+		{`[NUMERIC "1.5", 2.5]`, must(gcvctor.ArrayValueOf(typector.Float64(), gcvctor.Float64Value(1.5), gcvctor.Float64Value(2.5)))},
+		{`[CAST("1.5" AS FLOAT32), 2]`, must(gcvctor.ArrayValueOf(typector.Float64(), gcvctor.Float64Value(1.5), gcvctor.Float64Value(2)))},
+		{
+			`ARRAY<NUMERIC>[1, NULL]`,
+			must(gcvctor.ArrayValueOf(
+				typector.Numeric(),
+				gcvctor.NumericValue(big.NewRat(1, 1)),
+				gcvctor.NullOf(typector.Numeric()),
+			)),
+		},
+		{`ARRAY<FLOAT64>[1, NUMERIC "2.5"]`, must(gcvctor.ArrayValueOf(typector.Float64(), gcvctor.Float64Value(1), gcvctor.Float64Value(2.5)))},
 		{
 			`(1, "foo", 3.14)`,
 			must(gcvctor.StructValueOf(
@@ -219,13 +239,14 @@ func TestParseExpr_Numeric(t *testing.T) {
 	}
 }
 
-func TestParseExpr_AllParenthesizedNullArrayWithoutTypeReturnsError(t *testing.T) {
-	_, err := memebridge.ParseExpr("", "[(NULL)]")
-	if err == nil {
-		t.Fatal("expected error for typeless all-null array literal")
+func TestParseExpr_AllParenthesizedNullArrayInfersInt64(t *testing.T) {
+	got, err := memebridge.ParseExpr("", "[(NULL)]")
+	if err != nil {
+		t.Fatalf("should not fail, but err: %v", err)
 	}
-	if !errors.Is(err, memebridge.ErrCannotInferArrayElementType) {
-		t.Fatalf("unexpected error: %v", err)
+	want := must(gcvctor.ArrayValueOf(typector.Int64(), gcvctor.NullOf(typector.Int64())))
+	if diff := cmp.Diff(want, got, protocmp.Transform(), cmpopts.EquateNaNs()); diff != "" {
+		t.Errorf("mismatch (-want +got):\n%s", diff)
 	}
 }
 

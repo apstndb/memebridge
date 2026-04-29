@@ -160,17 +160,24 @@ func TestMemefishExprToGCV_EmptyArrayWithoutTypeReturnsError(t *testing.T) {
 	}
 }
 
-func TestMemefishExprToGCV_AllNullArrayWithoutTypeReturnsError(t *testing.T) {
-	_, err := memebridge.MemefishExprToGCV(&ast.ArrayLiteral{
+func TestMemefishExprToGCV_AllNullArrayWithoutTypeInfersInt64(t *testing.T) {
+	got, err := memebridge.MemefishExprToGCV(&ast.ArrayLiteral{
 		Values: []ast.Expr{
 			&ast.NullLiteral{},
 			&ast.NullLiteral{},
 		},
 	})
-	if err == nil {
-		t.Fatal("expected error for typeless all-null array literal")
+	if err != nil {
+		t.Fatalf("should not fail, but err: %v", err)
 	}
-	if !errors.Is(err, memebridge.ErrCannotInferArrayElementType) {
-		t.Fatalf("unexpected error: %v", err)
+	want := spanner.GenericColumnValue{
+		Type: typector.ElemCodeToArrayType(sppb.TypeCode_INT64),
+		Value: structpb.NewListValue(&structpb.ListValue{Values: []*structpb.Value{
+			structpb.NewNullValue(),
+			structpb.NewNullValue(),
+		}}),
+	}
+	if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+		t.Errorf("mismatch (-want +got):\n%s", diff)
 	}
 }

@@ -3,6 +3,7 @@ package memebridge
 import (
 	"errors"
 	"fmt"
+	"math/big"
 	"slices"
 	"strconv"
 
@@ -14,6 +15,7 @@ import (
 	"cloud.google.com/go/spanner"
 	sppb "cloud.google.com/go/spanner/apiv1/spannerpb"
 	"github.com/cloudspannerecosystem/memefish/ast"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -136,9 +138,8 @@ func MemefishExprToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
 			return zeroGCV, err
 		}
 
-		// An explicit ARRAY<T> annotation takes precedence; otherwise infer from
-		// the first expression that carries type information.
-		// TODO: Detect a common supertype instead of picking the first typed element.
+		// An explicit ARRAY<T> annotation takes precedence; otherwise infer a
+		// local common supertype from the literal elements.
 		var typ *sppb.Type
 		if e.Type != nil {
 			// memefish stores the explicit type from ARRAY<T>[...] as the element type T,
@@ -179,13 +180,29 @@ func MemefishExprToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
 func inferArrayElementType(exprs []ast.Expr, gcvs []spanner.GenericColumnValue) *sppb.Type {
 	// exprs and gcvs are derived from the same ArrayLiteral.Values slice, so
 	// their indexes stay aligned here.
+	if len(exprs) == 0 {
+		return nil
+	}
+
+	var first *sppb.Type
+	codes := make([]sppb.TypeCode, 0, len(gcvs))
 	for i, expr := range exprs {
 		if _, ok := unwrapParenExpr(expr).(*ast.NullLiteral); ok {
 			continue
 		}
-		return gcvs[i].Type
+		if first == nil {
+			first = gcvs[i].Type
+		}
+		codes = append(codes, gcvs[i].Type.GetCode())
 	}
-	return nil
+	if first == nil {
+		return typector.Int64()
+	}
+
+	if typ := commonNumericArrayElementType(codes); typ != nil {
+		return typ
+	}
+	return first
 }
 
 func unwrapParenExpr(expr ast.Expr) ast.Expr {
@@ -205,6 +222,11 @@ func arrayLiteralValueOf(elemType *sppb.Type, gcvs []spanner.GenericColumnValue)
 			return zeroGCV, err
 		}
 
+		coerced, coerceErr := coerceArrayElements(elemType, gcvs)
+		if coerceErr == nil {
+			return gcvctor.ArrayValueOf(elemType, coerced...)
+		}
+
 		// Preserve the current permissive behavior for array literals whose
 		// element values do not all match elemType. This intentionally keeps the
 		// original element wire values even when they disagree with elemType,
@@ -220,6 +242,110 @@ func arrayLiteralValueOf(elemType *sppb.Type, gcvs []spanner.GenericColumnValue)
 	}
 
 	return gcvctor.ArrayValueOf(elemType, normalized...)
+}
+
+func commonNumericArrayElementType(codes []sppb.TypeCode) *sppb.Type {
+	if len(codes) == 0 {
+		return nil
+	}
+
+	hasInt64 := false
+	hasNumeric := false
+	hasFloat32 := false
+	hasFloat64 := false
+	for _, code := range codes {
+		switch code {
+		case sppb.TypeCode_INT64:
+			hasInt64 = true
+		case sppb.TypeCode_NUMERIC:
+			hasNumeric = true
+		case sppb.TypeCode_FLOAT32:
+			hasFloat32 = true
+		case sppb.TypeCode_FLOAT64:
+			hasFloat64 = true
+		default:
+			return nil
+		}
+	}
+
+	switch {
+	case hasFloat64:
+		return typector.Float64()
+	case hasFloat32 && (hasInt64 || hasNumeric):
+		return typector.Float64()
+	case hasFloat32:
+		return typector.Float32()
+	case hasNumeric:
+		return typector.Numeric()
+	default:
+		return typector.Int64()
+	}
+}
+
+func coerceArrayElements(elemType *sppb.Type, gcvs []spanner.GenericColumnValue) ([]spanner.GenericColumnValue, error) {
+	coerced := make([]spanner.GenericColumnValue, 0, len(gcvs))
+	for _, gcv := range gcvs {
+		if isNullGCV(gcv) {
+			coerced = append(coerced, gcvctor.NullOf(elemType))
+			continue
+		}
+		if proto.Equal(gcv.Type, elemType) {
+			coerced = append(coerced, gcv)
+			continue
+		}
+		elem, err := coerceArrayElement(elemType, gcv)
+		if err != nil {
+			return nil, err
+		}
+		coerced = append(coerced, elem)
+	}
+	return coerced, nil
+}
+
+func coerceArrayElement(elemType *sppb.Type, gcv spanner.GenericColumnValue) (spanner.GenericColumnValue, error) {
+	switch elemType.GetCode() {
+	case sppb.TypeCode_NUMERIC:
+		if gcv.Type.GetCode() == sppb.TypeCode_INT64 {
+			v, err := int64FromGCV(gcv)
+			if err != nil {
+				return zeroGCV, err
+			}
+			return gcvctor.NumericValueChecked(big.NewRat(v, 1))
+		}
+	case sppb.TypeCode_FLOAT64:
+		return coerceArrayElementToFloat64(gcv)
+	}
+	return zeroGCV, fmt.Errorf("cannot coerce array element from %v to %v", gcv.Type.GetCode(), elemType.GetCode())
+}
+
+func coerceArrayElementToFloat64(gcv spanner.GenericColumnValue) (spanner.GenericColumnValue, error) {
+	switch gcv.Type.GetCode() {
+	case sppb.TypeCode_INT64:
+		v, err := int64FromGCV(gcv)
+		if err != nil {
+			return zeroGCV, err
+		}
+		return gcvctor.Float64Value(float64(v)), nil
+	case sppb.TypeCode_FLOAT32:
+		v, err := float64FromGCV(gcv, 32)
+		if err != nil {
+			return zeroGCV, err
+		}
+		return gcvctor.Float64Value(v), nil
+	case sppb.TypeCode_NUMERIC:
+		v, err := stringFromGCV(gcv)
+		if err != nil {
+			return zeroGCV, err
+		}
+		n, ok := new(big.Rat).SetString(v)
+		if !ok {
+			return zeroGCV, fmt.Errorf("invalid NUMERIC wire value: %q", v)
+		}
+		f, _ := n.Float64()
+		return gcvctor.Float64Value(f), nil
+	default:
+		return zeroGCV, fmt.Errorf("cannot coerce array element from %v to FLOAT64", gcv.Type.GetCode())
+	}
 }
 
 func nameOrEmpty(f *ast.StructField) string {
