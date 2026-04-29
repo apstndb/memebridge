@@ -209,6 +209,9 @@ func castGCVToNumeric(src spanner.GenericColumnValue, exprSQL string) (spanner.G
 		if err != nil {
 			return zeroGCV, err
 		}
+		if strings.Contains(v, "/") {
+			return zeroGCV, fmt.Errorf("invalid NUMERIC literal for cast of %s to NUMERIC: %q", exprSQL, v)
+		}
 		n, ok := new(big.Rat).SetString(v)
 		if !ok {
 			return zeroGCV, fmt.Errorf("invalid NUMERIC literal for cast of %s to NUMERIC: %q", exprSQL, v)
