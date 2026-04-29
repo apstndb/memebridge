@@ -88,7 +88,6 @@ func TestParseExpr(t *testing.T) {
 		{`CAST(42 AS STRING)`, gcvctor.StringValue("42")},
 		{`CAST(NUMERIC "3.140000000" AS STRING)`, gcvctor.StringValue("3.14")},
 		{`CAST("TrUe" AS BOOL)`, gcvctor.BoolValue(true)},
-		{`CAST(" true " AS BOOL)`, gcvctor.BoolValue(true)},
 		{`CAST("123" AS INT64)`, gcvctor.Int64Value(123)},
 		{`CAST(" 123 " AS INT64)`, gcvctor.Int64Value(123)},
 		{`CAST("0x123" AS INT64)`, gcvctor.Int64Value(291)},
@@ -233,6 +232,7 @@ func TestParseExpr_AllParenthesizedNullArrayWithoutTypeReturnsError(t *testing.T
 func TestParseExpr_InvalidCastReturnsError(t *testing.T) {
 	tests := []string{
 		`CAST("maybe" AS BOOL)`,
+		`CAST(" true " AS BOOL)`,
 		`CAST("12x" AS INT64)`,
 		`CAST("not-a-number" AS NUMERIC)`,
 		`CAST("1/2" AS NUMERIC)`,

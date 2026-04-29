@@ -89,7 +89,6 @@ func castGCVToBool(src spanner.GenericColumnValue, exprSQL string) (spanner.Gene
 		if err != nil {
 			return zeroGCV, err
 		}
-		v = strings.TrimSpace(v)
 		switch {
 		case strings.EqualFold(v, "true"):
 			return gcvctor.BoolValue(true), nil
@@ -405,6 +404,7 @@ func roundFloatToInt64(v float64) (int64, error) {
 	if math.IsNaN(v) || math.IsInf(v, 0) {
 		return 0, fmt.Errorf("cannot cast non-finite floating-point value to INT64: %v", v)
 	}
+	// Spanner CAST(FLOAT* AS INT64) rounds halfway cases away from zero.
 	rounded := math.Round(v)
 	if rounded < minInt64Float || rounded >= maxInt64FloatExclusive {
 		return 0, fmt.Errorf("floating-point value out of INT64 range: %v", v)
