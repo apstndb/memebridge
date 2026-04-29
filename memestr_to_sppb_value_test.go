@@ -78,6 +78,27 @@ func TestParseExpr(t *testing.T) {
 			)),
 		},
 		{"(1)", gcvctor.Int64Value(1)},
+		{`CAST(TRUE AS INT64)`, gcvctor.Int64Value(1)},
+		{`CAST(FALSE AS STRING)`, gcvctor.StringValue("false")},
+		{`CAST(0 AS BOOL)`, gcvctor.BoolValue(false)},
+		{`CAST(2 AS BOOL)`, gcvctor.BoolValue(true)},
+		{`CAST(42 AS FLOAT32)`, gcvctor.Float32Value(42)},
+		{`CAST(42 AS FLOAT64)`, gcvctor.Float64Value(42)},
+		{`CAST(42 AS NUMERIC)`, gcvctor.NumericValue(big.NewRat(42, 1))},
+		{`CAST(42 AS STRING)`, gcvctor.StringValue("42")},
+		{`CAST("TrUe" AS BOOL)`, gcvctor.BoolValue(true)},
+		{`CAST("123" AS INT64)`, gcvctor.Int64Value(123)},
+		{`CAST("0x123" AS INT64)`, gcvctor.Int64Value(291)},
+		{`CAST("-0x123" AS INT64)`, gcvctor.Int64Value(-291)},
+		{`CAST(1.5 AS INT64)`, gcvctor.Int64Value(2)},
+		{`CAST(-0.5 AS INT64)`, gcvctor.Int64Value(-1)},
+		{`CAST("3.5" AS FLOAT64)`, gcvctor.Float64Value(3.5)},
+		{`CAST("inf" AS FLOAT64)`, gcvctor.Float64Value(math.Inf(1))},
+		{`CAST("foo" AS BYTES)`, gcvctor.BytesValue([]byte("foo"))},
+		{`CAST(b"foo" AS STRING)`, gcvctor.StringValue("foo")},
+		{`CAST("1970-01-01" AS DATE)`, gcvctor.DateValue(civil.Date{Year: 1970, Month: time.January, Day: 1})},
+		{`CAST("1970-01-01T00:00:00Z" AS TIMESTAMP)`, gcvctor.TimestampValue(time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC))},
+		{`CAST(CAST(42 AS STRING) AS INT64)`, gcvctor.Int64Value(42)},
 		{`CAST("NaN" AS FLOAT64)`, gcvctor.Float64Value(math.NaN())},
 		{`CAST("Infinity" AS FLOAT64)`, gcvctor.Float64Value(math.Inf(1))},
 		{`CAST("-Infinity" AS FLOAT64)`, gcvctor.Float64Value(math.Inf(-1))},
@@ -179,5 +200,21 @@ func TestParseExpr_AllParenthesizedNullArrayWithoutTypeReturnsError(t *testing.T
 	}
 	if !errors.Is(err, memebridge.ErrCannotInferArrayElementType) {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestParseExpr_InvalidCastReturnsError(t *testing.T) {
+	tests := []string{
+		`CAST("maybe" AS BOOL)`,
+		`CAST("12x" AS INT64)`,
+		`CAST(CAST("nan" AS FLOAT64) AS INT64)`,
+		`CAST(b"\xff" AS STRING)`,
+	}
+	for _, input := range tests {
+		t.Run(input, func(t *testing.T) {
+			if _, err := memebridge.ParseExpr("", input); err == nil {
+				t.Fatal("expected error")
+			}
+		})
 	}
 }
