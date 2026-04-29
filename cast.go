@@ -462,7 +462,7 @@ func formatSpannerFloat(v float64, bitSize int) string {
 
 func unsupportedCastError(srcCode, destCode sppb.TypeCode, exprSQL string) error {
 	if exprSQL == "" {
-		return fmt.Errorf("unsupported cast from %s to %s", srcCode, destCode)
+		return fmt.Errorf("unsupported cast from %v to %v", srcCode, destCode)
 	}
-	return fmt.Errorf("unsupported cast from %s to %s: %s", srcCode, destCode, exprSQL)
+	return fmt.Errorf("unsupported cast from %v to %v: %s", srcCode, destCode, exprSQL)
 }
