@@ -13,6 +13,7 @@ import (
 	sppb "cloud.google.com/go/spanner/apiv1/spannerpb"
 	"github.com/apstndb/spanvalue/gcvctor"
 	"github.com/cloudspannerecosystem/memefish/ast"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -45,56 +46,37 @@ func memefishCastExprToGCV(cast *ast.CastExpr) (spanner.GenericColumnValue, erro
 func castGCV(src spanner.GenericColumnValue, destType *sppb.Type, exprSQL string) (spanner.GenericColumnValue, error) {
 	srcCode := src.Type.GetCode()
 	destCode := destType.GetCode()
-	if srcCode == destCode && isScalarCastCode(destCode) {
+	if proto.Equal(src.Type, destType) {
 		return spanner.GenericColumnValue{Type: destType, Value: src.Value}, nil
 	}
 
 	switch destCode {
 	case sppb.TypeCode_BOOL:
-		return castGCVToBool(src)
+		return castGCVToBool(src, exprSQL)
 	case sppb.TypeCode_INT64:
-		return castGCVToInt64(src)
+		return castGCVToInt64(src, exprSQL)
 	case sppb.TypeCode_FLOAT32:
-		return castGCVToFloat32(src)
+		return castGCVToFloat32(src, exprSQL)
 	case sppb.TypeCode_FLOAT64:
-		return castGCVToFloat64(src)
+		return castGCVToFloat64(src, exprSQL)
 	case sppb.TypeCode_NUMERIC:
-		return castGCVToNumeric(src)
+		return castGCVToNumeric(src, exprSQL)
 	case sppb.TypeCode_STRING:
-		return castGCVToString(src)
+		return castGCVToString(src, exprSQL)
 	case sppb.TypeCode_BYTES:
-		return castGCVToBytes(src)
+		return castGCVToBytes(src, exprSQL)
 	case sppb.TypeCode_DATE:
-		return castGCVToDate(src)
+		return castGCVToDate(src, exprSQL)
 	case sppb.TypeCode_TIMESTAMP:
-		return castGCVToTimestamp(src)
+		return castGCVToTimestamp(src, exprSQL)
 	case sppb.TypeCode_UUID, sppb.TypeCode_INTERVAL:
-		return castStringBasedGCV(src, destCode)
+		return castStringBasedGCV(src, destCode, exprSQL)
 	default:
 		return zeroGCV, unsupportedCastError(srcCode, destCode, exprSQL)
 	}
 }
 
-func isScalarCastCode(code sppb.TypeCode) bool {
-	switch code {
-	case sppb.TypeCode_BOOL,
-		sppb.TypeCode_INT64,
-		sppb.TypeCode_FLOAT32,
-		sppb.TypeCode_FLOAT64,
-		sppb.TypeCode_NUMERIC,
-		sppb.TypeCode_STRING,
-		sppb.TypeCode_BYTES,
-		sppb.TypeCode_DATE,
-		sppb.TypeCode_TIMESTAMP,
-		sppb.TypeCode_UUID,
-		sppb.TypeCode_INTERVAL:
-		return true
-	default:
-		return false
-	}
-}
-
-func castGCVToBool(src spanner.GenericColumnValue) (spanner.GenericColumnValue, error) {
+func castGCVToBool(src spanner.GenericColumnValue, exprSQL string) (spanner.GenericColumnValue, error) {
 	switch src.Type.GetCode() {
 	case sppb.TypeCode_INT64:
 		v, err := int64FromGCV(src)
@@ -116,11 +98,11 @@ func castGCVToBool(src spanner.GenericColumnValue) (spanner.GenericColumnValue, 
 			return zeroGCV, fmt.Errorf("invalid BOOL literal for cast: %q", v)
 		}
 	default:
-		return zeroGCV, unsupportedCastError(src.Type.GetCode(), sppb.TypeCode_BOOL, "")
+		return zeroGCV, unsupportedCastError(src.Type.GetCode(), sppb.TypeCode_BOOL, exprSQL)
 	}
 }
 
-func castGCVToInt64(src spanner.GenericColumnValue) (spanner.GenericColumnValue, error) {
+func castGCVToInt64(src spanner.GenericColumnValue, exprSQL string) (spanner.GenericColumnValue, error) {
 	switch src.Type.GetCode() {
 	case sppb.TypeCode_BOOL:
 		v, err := boolFromGCV(src)
@@ -152,11 +134,11 @@ func castGCVToInt64(src spanner.GenericColumnValue) (spanner.GenericColumnValue,
 		}
 		return gcvctor.Int64Value(i), nil
 	default:
-		return zeroGCV, unsupportedCastError(src.Type.GetCode(), sppb.TypeCode_INT64, "")
+		return zeroGCV, unsupportedCastError(src.Type.GetCode(), sppb.TypeCode_INT64, exprSQL)
 	}
 }
 
-func castGCVToFloat32(src spanner.GenericColumnValue) (spanner.GenericColumnValue, error) {
+func castGCVToFloat32(src spanner.GenericColumnValue, exprSQL string) (spanner.GenericColumnValue, error) {
 	switch src.Type.GetCode() {
 	case sppb.TypeCode_INT64:
 		v, err := int64FromGCV(src)
@@ -181,11 +163,11 @@ func castGCVToFloat32(src spanner.GenericColumnValue) (spanner.GenericColumnValu
 		}
 		return gcvctor.Float32Value(float32(f)), nil
 	default:
-		return zeroGCV, unsupportedCastError(src.Type.GetCode(), sppb.TypeCode_FLOAT32, "")
+		return zeroGCV, unsupportedCastError(src.Type.GetCode(), sppb.TypeCode_FLOAT32, exprSQL)
 	}
 }
 
-func castGCVToFloat64(src spanner.GenericColumnValue) (spanner.GenericColumnValue, error) {
+func castGCVToFloat64(src spanner.GenericColumnValue, exprSQL string) (spanner.GenericColumnValue, error) {
 	switch src.Type.GetCode() {
 	case sppb.TypeCode_INT64:
 		v, err := int64FromGCV(src)
@@ -210,11 +192,11 @@ func castGCVToFloat64(src spanner.GenericColumnValue) (spanner.GenericColumnValu
 		}
 		return gcvctor.Float64Value(f), nil
 	default:
-		return zeroGCV, unsupportedCastError(src.Type.GetCode(), sppb.TypeCode_FLOAT64, "")
+		return zeroGCV, unsupportedCastError(src.Type.GetCode(), sppb.TypeCode_FLOAT64, exprSQL)
 	}
 }
 
-func castGCVToNumeric(src spanner.GenericColumnValue) (spanner.GenericColumnValue, error) {
+func castGCVToNumeric(src spanner.GenericColumnValue, exprSQL string) (spanner.GenericColumnValue, error) {
 	switch src.Type.GetCode() {
 	case sppb.TypeCode_INT64:
 		v, err := int64FromGCV(src)
@@ -223,11 +205,11 @@ func castGCVToNumeric(src spanner.GenericColumnValue) (spanner.GenericColumnValu
 		}
 		return gcvctor.NumericValueChecked(big.NewRat(v, 1))
 	default:
-		return zeroGCV, unsupportedCastError(src.Type.GetCode(), sppb.TypeCode_NUMERIC, "")
+		return zeroGCV, unsupportedCastError(src.Type.GetCode(), sppb.TypeCode_NUMERIC, exprSQL)
 	}
 }
 
-func castGCVToString(src spanner.GenericColumnValue) (spanner.GenericColumnValue, error) {
+func castGCVToString(src spanner.GenericColumnValue, exprSQL string) (spanner.GenericColumnValue, error) {
 	switch src.Type.GetCode() {
 	case sppb.TypeCode_BOOL:
 		v, err := boolFromGCV(src)
@@ -263,13 +245,13 @@ func castGCVToString(src spanner.GenericColumnValue) (spanner.GenericColumnValue
 		}
 		return gcvctor.StringValue(string(v)), nil
 	default:
-		return zeroGCV, unsupportedCastError(src.Type.GetCode(), sppb.TypeCode_STRING, "")
+		return zeroGCV, unsupportedCastError(src.Type.GetCode(), sppb.TypeCode_STRING, exprSQL)
 	}
 }
 
-func castGCVToBytes(src spanner.GenericColumnValue) (spanner.GenericColumnValue, error) {
+func castGCVToBytes(src spanner.GenericColumnValue, exprSQL string) (spanner.GenericColumnValue, error) {
 	if src.Type.GetCode() != sppb.TypeCode_STRING {
-		return zeroGCV, unsupportedCastError(src.Type.GetCode(), sppb.TypeCode_BYTES, "")
+		return zeroGCV, unsupportedCastError(src.Type.GetCode(), sppb.TypeCode_BYTES, exprSQL)
 	}
 	v, err := stringFromGCV(src)
 	if err != nil {
@@ -278,9 +260,9 @@ func castGCVToBytes(src spanner.GenericColumnValue) (spanner.GenericColumnValue,
 	return gcvctor.BytesValue([]byte(v)), nil
 }
 
-func castGCVToDate(src spanner.GenericColumnValue) (spanner.GenericColumnValue, error) {
+func castGCVToDate(src spanner.GenericColumnValue, exprSQL string) (spanner.GenericColumnValue, error) {
 	if src.Type.GetCode() != sppb.TypeCode_STRING {
-		return zeroGCV, unsupportedCastError(src.Type.GetCode(), sppb.TypeCode_DATE, "")
+		return zeroGCV, unsupportedCastError(src.Type.GetCode(), sppb.TypeCode_DATE, exprSQL)
 	}
 	v, err := stringFromGCV(src)
 	if err != nil {
@@ -289,9 +271,9 @@ func castGCVToDate(src spanner.GenericColumnValue) (spanner.GenericColumnValue, 
 	return gcvctor.DateStringValue(v)
 }
 
-func castGCVToTimestamp(src spanner.GenericColumnValue) (spanner.GenericColumnValue, error) {
+func castGCVToTimestamp(src spanner.GenericColumnValue, exprSQL string) (spanner.GenericColumnValue, error) {
 	if src.Type.GetCode() != sppb.TypeCode_STRING {
-		return zeroGCV, unsupportedCastError(src.Type.GetCode(), sppb.TypeCode_TIMESTAMP, "")
+		return zeroGCV, unsupportedCastError(src.Type.GetCode(), sppb.TypeCode_TIMESTAMP, exprSQL)
 	}
 	v, err := stringFromGCV(src)
 	if err != nil {
@@ -300,9 +282,9 @@ func castGCVToTimestamp(src spanner.GenericColumnValue) (spanner.GenericColumnVa
 	return gcvctor.TimestampStringValue(v)
 }
 
-func castStringBasedGCV(src spanner.GenericColumnValue, destCode sppb.TypeCode) (spanner.GenericColumnValue, error) {
+func castStringBasedGCV(src spanner.GenericColumnValue, destCode sppb.TypeCode, exprSQL string) (spanner.GenericColumnValue, error) {
 	if src.Type.GetCode() != sppb.TypeCode_STRING {
-		return zeroGCV, unsupportedCastError(src.Type.GetCode(), destCode, "")
+		return zeroGCV, unsupportedCastError(src.Type.GetCode(), destCode, exprSQL)
 	}
 	v, err := stringFromGCV(src)
 	if err != nil {

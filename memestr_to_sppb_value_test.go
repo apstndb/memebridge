@@ -98,6 +98,14 @@ func TestParseExpr(t *testing.T) {
 		{`CAST(b"foo" AS STRING)`, gcvctor.StringValue("foo")},
 		{`CAST("1970-01-01" AS DATE)`, gcvctor.DateValue(civil.Date{Year: 1970, Month: time.January, Day: 1})},
 		{`CAST("1970-01-01T00:00:00Z" AS TIMESTAMP)`, gcvctor.TimestampValue(time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC))},
+		{`CAST([1] AS ARRAY<INT64>)`, must(gcvctor.ArrayValueOf(typector.Int64(), gcvctor.Int64Value(1)))},
+		{
+			`CAST(STRUCT(1 AS foo) AS STRUCT<foo INT64>)`,
+			must(gcvctor.StructValueOf(
+				[]string{"foo"},
+				[]spanner.GenericColumnValue{gcvctor.Int64Value(1)},
+			)),
+		},
 		{`CAST(CAST(42 AS STRING) AS INT64)`, gcvctor.Int64Value(42)},
 		{`CAST("NaN" AS FLOAT64)`, gcvctor.Float64Value(math.NaN())},
 		{`CAST("Infinity" AS FLOAT64)`, gcvctor.Float64Value(math.Inf(1))},
