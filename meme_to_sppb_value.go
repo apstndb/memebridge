@@ -277,8 +277,10 @@ func commonNumericArrayElementType(codes []sppb.TypeCode) *sppb.Type {
 		return typector.Float32()
 	case hasNumeric:
 		return typector.Numeric()
-	default:
+	case hasInt64:
 		return typector.Int64()
+	default:
+		return nil
 	}
 }
 
@@ -293,6 +295,8 @@ func coerceArrayElements(elemType *sppb.Type, gcvs []spanner.GenericColumnValue)
 			coerced = append(coerced, gcv)
 			continue
 		}
+		// Unsupported coercions intentionally return an error to let
+		// arrayLiteralValueOf preserve the original permissive wire-value fallback.
 		elem, err := coerceArrayElement(elemType, gcv)
 		if err != nil {
 			return nil, err
