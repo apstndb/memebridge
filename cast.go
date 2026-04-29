@@ -89,6 +89,7 @@ func castGCVToBool(src spanner.GenericColumnValue, exprSQL string) (spanner.Gene
 		if err != nil {
 			return zeroGCV, err
 		}
+		v = strings.TrimSpace(v)
 		switch {
 		case strings.EqualFold(v, "true"):
 			return gcvctor.BoolValue(true), nil
@@ -209,7 +210,11 @@ func castGCVToNumeric(src spanner.GenericColumnValue, exprSQL string) (spanner.G
 		if err != nil {
 			return zeroGCV, err
 		}
+		v = strings.TrimSpace(v)
 		if strings.Contains(v, "/") {
+			return zeroGCV, fmt.Errorf("invalid NUMERIC literal for cast of %s to NUMERIC: %q", exprSQL, v)
+		}
+		if strings.Contains(v, "0x") || strings.Contains(v, "0X") {
 			return zeroGCV, fmt.Errorf("invalid NUMERIC literal for cast of %s to NUMERIC: %q", exprSQL, v)
 		}
 		n, ok := new(big.Rat).SetString(v)
@@ -291,7 +296,7 @@ func castGCVToDate(src spanner.GenericColumnValue, exprSQL string) (spanner.Gene
 	if err != nil {
 		return zeroGCV, err
 	}
-	return gcvctor.DateStringValue(v)
+	return gcvctor.DateStringValue(strings.TrimSpace(v))
 }
 
 func castGCVToTimestamp(src spanner.GenericColumnValue, exprSQL string) (spanner.GenericColumnValue, error) {
@@ -302,7 +307,7 @@ func castGCVToTimestamp(src spanner.GenericColumnValue, exprSQL string) (spanner
 	if err != nil {
 		return zeroGCV, err
 	}
-	return gcvctor.TimestampStringValue(v)
+	return gcvctor.TimestampStringValue(strings.TrimSpace(v))
 }
 
 func castStringBasedGCV(src spanner.GenericColumnValue, destCode sppb.TypeCode, exprSQL string) (spanner.GenericColumnValue, error) {
@@ -313,7 +318,7 @@ func castStringBasedGCV(src spanner.GenericColumnValue, destCode sppb.TypeCode, 
 	if err != nil {
 		return zeroGCV, err
 	}
-	return gcvctor.StringBasedValueFromCode(destCode, v), nil
+	return gcvctor.StringBasedValueFromCode(destCode, strings.TrimSpace(v)), nil
 }
 
 func isNullGCV(gcv spanner.GenericColumnValue) bool {
@@ -368,6 +373,7 @@ func float64FromGCV(gcv spanner.GenericColumnValue, bitSize int) (float64, error
 }
 
 func parseSpannerInt64(v string) (int64, error) {
+	v = strings.TrimSpace(v)
 	unsigned := v
 	if strings.HasPrefix(unsigned, "+") || strings.HasPrefix(unsigned, "-") {
 		unsigned = unsigned[1:]
@@ -379,6 +385,7 @@ func parseSpannerInt64(v string) (int64, error) {
 }
 
 func parseSpannerFloat(v string, bitSize int) (float64, error) {
+	v = strings.TrimSpace(v)
 	switch strings.ToLower(v) {
 	case "nan", "+nan", "-nan":
 		return math.NaN(), nil
