@@ -237,6 +237,7 @@ func TestParseExpr_InvalidCastReturnsError(t *testing.T) {
 		`CAST("not-a-number" AS NUMERIC)`,
 		`CAST("1/2" AS NUMERIC)`,
 		`CAST("0x10" AS NUMERIC)`,
+		`CAST("1e2" AS NUMERIC)`,
 		`CAST(CAST("nan" AS FLOAT64) AS INT64)`,
 		`CAST(b"\xff" AS STRING)`,
 	}
