@@ -416,7 +416,7 @@ func parseSpannerFloat(v string, bitSize int) (float64, error) {
 func float32ValueFromFloat64(v float64) (spanner.GenericColumnValue, error) {
 	f32 := float32(v)
 	if !math.IsInf(v, 0) && math.IsInf(float64(f32), 0) {
-		return zeroGCV, fmt.Errorf("FLOAT64 value out of FLOAT32 range: %v", v)
+		return zeroGCV, fmt.Errorf("value out of FLOAT32 range: %v", v)
 	}
 	return gcvctor.Float32Value(f32), nil
 }
