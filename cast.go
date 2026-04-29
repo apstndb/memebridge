@@ -90,6 +90,8 @@ func castGCVToBool(src spanner.GenericColumnValue, exprSQL string) (spanner.Gene
 		if err != nil {
 			return zeroGCV, err
 		}
+		// BOOL casts only accept case-insensitive "true" or "false"; unlike
+		// numeric and temporal string casts, surrounding whitespace stays invalid.
 		switch {
 		case strings.EqualFold(v, "true"):
 			return gcvctor.BoolValue(true), nil
@@ -454,6 +456,7 @@ func formatSpannerFloat(v float64, bitSize int) string {
 	case math.IsInf(v, -1):
 		return "-Infinity"
 	case v == 0:
+		// Spanner documents that FLOAT-to-STRING results for 0 are not signed.
 		return "0"
 	default:
 		return strconv.FormatFloat(v, 'g', -1, bitSize)
