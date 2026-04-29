@@ -78,6 +78,53 @@ func TestParseExpr(t *testing.T) {
 			)),
 		},
 		{"(1)", gcvctor.Int64Value(1)},
+		{`CAST(TRUE AS INT64)`, gcvctor.Int64Value(1)},
+		{`CAST(FALSE AS STRING)`, gcvctor.StringValue("false")},
+		{`CAST(0 AS BOOL)`, gcvctor.BoolValue(false)},
+		{`CAST(2 AS BOOL)`, gcvctor.BoolValue(true)},
+		{`CAST(42 AS FLOAT32)`, gcvctor.Float32Value(42)},
+		{`CAST(42 AS FLOAT64)`, gcvctor.Float64Value(42)},
+		{`CAST(42 AS NUMERIC)`, gcvctor.NumericValue(big.NewRat(42, 1))},
+		{`CAST(42 AS STRING)`, gcvctor.StringValue("42")},
+		{`CAST(NUMERIC "3.140000000" AS STRING)`, gcvctor.StringValue("3.14")},
+		{`CAST("TrUe" AS BOOL)`, gcvctor.BoolValue(true)},
+		{`CAST("123" AS INT64)`, gcvctor.Int64Value(123)},
+		{`CAST(" 123 " AS INT64)`, gcvctor.Int64Value(123)},
+		{`CAST("0x123" AS INT64)`, gcvctor.Int64Value(291)},
+		{`CAST("-0x123" AS INT64)`, gcvctor.Int64Value(-291)},
+		{`CAST(1.5 AS INT64)`, gcvctor.Int64Value(2)},
+		{`CAST(-0.5 AS INT64)`, gcvctor.Int64Value(-1)},
+		{`CAST(3.5 AS STRING)`, gcvctor.StringValue("3.5")},
+		{`CAST(CAST("Infinity" AS FLOAT64) AS STRING)`, gcvctor.StringValue("Infinity")},
+		{`CAST("3.5" AS FLOAT32)`, gcvctor.Float32Value(3.5)},
+		{`CAST("nan" AS FLOAT32)`, gcvctor.Float32Value(float32(math.NaN()))},
+		{`CAST(CAST("3.5" AS FLOAT32) AS STRING)`, gcvctor.StringValue("3.5")},
+		{`CAST("3.5" AS FLOAT64)`, gcvctor.Float64Value(3.5)},
+		{`CAST(" Infinity " AS FLOAT64)`, gcvctor.Float64Value(math.Inf(1))},
+		{`CAST("3.14" AS NUMERIC)`, gcvctor.NumericValue(big.NewRat(314, 100))},
+		{`CAST(" 3.14 " AS NUMERIC)`, gcvctor.NumericValue(big.NewRat(314, 100))},
+		{`CAST("inf" AS FLOAT64)`, gcvctor.Float64Value(math.Inf(1))},
+		{`CAST("foo" AS BYTES)`, gcvctor.BytesValue([]byte("foo"))},
+		{`CAST(b"foo" AS STRING)`, gcvctor.StringValue("foo")},
+		{`CAST("1970-01-01" AS DATE)`, gcvctor.DateValue(civil.Date{Year: 1970, Month: time.January, Day: 1})},
+		{`CAST(" 1970-01-01 " AS DATE)`, gcvctor.DateValue(civil.Date{Year: 1970, Month: time.January, Day: 1})},
+		{`CAST(DATE "1970-01-01" AS STRING)`, gcvctor.StringValue("1970-01-01")},
+		{`CAST("1970-01-01T00:00:00Z" AS TIMESTAMP)`, gcvctor.TimestampValue(time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC))},
+		{`CAST(" 1970-01-01T00:00:00Z " AS TIMESTAMP)`, gcvctor.TimestampValue(time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC))},
+		{`CAST(TIMESTAMP "1970-01-01T00:00:00Z" AS STRING)`, gcvctor.StringValue("1970-01-01T00:00:00Z")},
+		{`CAST(" 94a01a73-d90a-432d-a03f-5db58ea8058f " AS UUID)`, gcvctor.StringBasedValueFromCode(sppb.TypeCode_UUID, `94a01a73-d90a-432d-a03f-5db58ea8058f`)},
+		{`CAST(CAST("94a01a73-d90a-432d-a03f-5db58ea8058f" AS UUID) AS STRING)`, gcvctor.StringValue("94a01a73-d90a-432d-a03f-5db58ea8058f")},
+		{`CAST(" P1Y " AS INTERVAL)`, gcvctor.StringBasedValueFromCode(sppb.TypeCode_INTERVAL, `P1Y`)},
+		{`CAST(CAST("P1Y" AS INTERVAL) AS STRING)`, gcvctor.StringValue("P1Y")},
+		{`CAST([1] AS ARRAY<INT64>)`, must(gcvctor.ArrayValueOf(typector.Int64(), gcvctor.Int64Value(1)))},
+		{
+			`CAST(STRUCT(1 AS foo) AS STRUCT<foo INT64>)`,
+			must(gcvctor.StructValueOf(
+				[]string{"foo"},
+				[]spanner.GenericColumnValue{gcvctor.Int64Value(1)},
+			)),
+		},
+		{`CAST(CAST(42 AS STRING) AS INT64)`, gcvctor.Int64Value(42)},
 		{`CAST("NaN" AS FLOAT64)`, gcvctor.Float64Value(math.NaN())},
 		{`CAST("Infinity" AS FLOAT64)`, gcvctor.Float64Value(math.Inf(1))},
 		{`CAST("-Infinity" AS FLOAT64)`, gcvctor.Float64Value(math.Inf(-1))},
@@ -89,7 +136,7 @@ func TestParseExpr(t *testing.T) {
 
 		{"PENDING_COMMIT_TIMESTAMP()", gcvctor.StringBasedValueFromCode(sppb.TypeCode_TIMESTAMP, "spanner.commit_timestamp()")},
 
-		{`CAST("P1Y2M3DT4H5M6.5S" AS INTERVAL)`, gcvctor.StringBasedValueFromCode(sppb.TypeCode_INTERVAL, `P1Y2M3DT4H5M6.5S`)},
+		{`CAST("P1Y2M3DT4H5M6.5S" AS INTERVAL)`, must(gcvctor.IntervalStringValue(`P1Y2M3DT4H5M6.5S`))},
 		{"CAST(NULL AS INTERVAL)", gcvctor.NullOf(typector.Interval())},
 
 		{"INTERVAL 3 YEAR", gcvctor.StringBasedValueFromCode(sppb.TypeCode_INTERVAL, "P3Y")},
@@ -179,5 +226,29 @@ func TestParseExpr_AllParenthesizedNullArrayWithoutTypeReturnsError(t *testing.T
 	}
 	if !errors.Is(err, memebridge.ErrCannotInferArrayElementType) {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestParseExpr_InvalidCastReturnsError(t *testing.T) {
+	tests := []string{
+		`CAST("maybe" AS BOOL)`,
+		`CAST(" true " AS BOOL)`,
+		`CAST("12x" AS INT64)`,
+		`CAST("not-a-number" AS NUMERIC)`,
+		`CAST("1/2" AS NUMERIC)`,
+		`CAST("0x10" AS NUMERIC)`,
+		`CAST("1e2" AS NUMERIC)`,
+		`CAST(1e50 AS FLOAT32)`,
+		`CAST("not-a-uuid" AS UUID)`,
+		`CAST("not-an-interval" AS INTERVAL)`,
+		`CAST(CAST("nan" AS FLOAT64) AS INT64)`,
+		`CAST(b"\xff" AS STRING)`,
+	}
+	for _, input := range tests {
+		t.Run(input, func(t *testing.T) {
+			if _, err := memebridge.ParseExpr("", input); err == nil {
+				t.Fatal("expected error")
+			}
+		})
 	}
 }
