@@ -129,7 +129,7 @@ func castGCVToInt64(src spanner.GenericColumnValue, exprSQL string) (spanner.Gen
 		if err != nil {
 			return zeroGCV, err
 		}
-		i, err := roundFloatToInt64(v)
+		i, err := roundFloatToInt64(v, exprSQL)
 		if err != nil {
 			return zeroGCV, err
 		}
@@ -421,14 +421,18 @@ func float32ValueFromFloat64(v float64) (spanner.GenericColumnValue, error) {
 	return gcvctor.Float32Value(f32), nil
 }
 
-func roundFloatToInt64(v float64) (int64, error) {
+func roundFloatToInt64(v float64, exprSQL string) (int64, error) {
+	exprContext := ""
+	if exprSQL != "" {
+		exprContext = ": " + exprSQL
+	}
 	if math.IsNaN(v) || math.IsInf(v, 0) {
-		return 0, fmt.Errorf("cannot cast non-finite floating-point value to INT64: %v", v)
+		return 0, fmt.Errorf("cannot cast non-finite floating-point value to INT64: %v%s", v, exprContext)
 	}
 	// Spanner CAST(FLOAT* AS INT64) rounds halfway cases away from zero.
 	rounded := math.Round(v)
 	if rounded < minInt64Float || rounded >= maxInt64FloatExclusive {
-		return 0, fmt.Errorf("floating-point value out of INT64 range: %v", v)
+		return 0, fmt.Errorf("floating-point value out of INT64 range: %v%s", v, exprContext)
 	}
 	return int64(rounded), nil
 }
