@@ -291,8 +291,8 @@ func coerceArrayElements(elemType *sppb.Type, gcvs []spanner.GenericColumnValue)
 
 func coerceArrayElement(elemType *sppb.Type, gcv spanner.GenericColumnValue) (spanner.GenericColumnValue, error) {
 	// This is not the full CAST matrix. It only models array literal coercions
-	// that are safe locally; unsupported cases return an error so the caller can
-	// preserve the pre-existing permissive wire-value fallback.
+	// that are safe locally; CAST-only conversions such as FLOAT64 to NUMERIC
+	// and NUMERIC to FLOAT32 intentionally fall back to preserving wire values.
 	switch elemType.GetCode() {
 	case sppb.TypeCode_NUMERIC:
 		if gcv.Type.GetCode() == sppb.TypeCode_INT64 {
@@ -311,6 +311,8 @@ func coerceArrayElement(elemType *sppb.Type, gcv spanner.GenericColumnValue) (sp
 }
 
 func coerceArrayElementToFloat32(gcv spanner.GenericColumnValue) (spanner.GenericColumnValue, error) {
+	// Reuse scalar CAST helpers from cast.go so float narrowing and wire-value
+	// extraction stay consistent between CAST emulation and array coercion.
 	switch gcv.Type.GetCode() {
 	case sppb.TypeCode_INT64:
 		v, err := int64FromGCV(gcv)
