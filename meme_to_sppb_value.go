@@ -185,7 +185,7 @@ func inferArrayElementType(exprs []ast.Expr, gcvs []spanner.GenericColumnValue) 
 	}
 
 	var first *sppb.Type
-	codes := make([]sppb.TypeCode, 0, len(gcvs))
+	codes := make([]sppb.TypeCode, 0, len(exprs))
 	for i, expr := range exprs {
 		if _, ok := unwrapParenExpr(expr).(*ast.NullLiteral); ok {
 			continue
