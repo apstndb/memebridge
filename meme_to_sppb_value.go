@@ -90,8 +90,8 @@ func typedStructLiteralToGCV(expr *ast.TypedStructLiteral) (spanner.GenericColum
 		return zeroGCV, fmt.Errorf("typed struct literal has %d fields but %d values", len(expr.Fields), len(expr.Values))
 	}
 
-	names := make([]string, 0, len(expr.Fields))
-	gcvs := make([]spanner.GenericColumnValue, 0, len(expr.Values))
+	names := make([]string, len(expr.Fields))
+	gcvs := make([]spanner.GenericColumnValue, len(expr.Values))
 	for i, field := range expr.Fields {
 		if field == nil {
 			return zeroGCV, fmt.Errorf("typed struct literal has nil field at index %d", i)
@@ -108,8 +108,8 @@ func typedStructLiteralToGCV(expr *ast.TypedStructLiteral) (spanner.GenericColum
 		if err != nil {
 			return zeroGCV, err
 		}
-		names = append(names, nameOrEmpty(field))
-		gcvs = append(gcvs, coerced)
+		names[i] = fieldNameOrEmpty(field)
+		gcvs[i] = coerced
 	}
 	return gcvctor.StructValueOf(names, gcvs)
 }
@@ -480,33 +480,33 @@ func coerceArrayElementsStrict(
 	exprs []ast.Expr,
 	gcvs []spanner.GenericColumnValue,
 ) ([]spanner.GenericColumnValue, error) {
-	coerced := make([]spanner.GenericColumnValue, 0, len(gcvs))
+	coerced := make([]spanner.GenericColumnValue, len(gcvs))
 	for i, gcv := range gcvs {
 		elem, err := coerceTypedStructField(elemType, gcv, exprs[i])
 		if err != nil {
 			return nil, fmt.Errorf("cannot coerce array element %d (%s): %w", i, exprs[i].SQL(), err)
 		}
-		coerced = append(coerced, elem)
+		coerced[i] = elem
 	}
 	return coerced, nil
 }
 
 func coerceArrayElements(elemType *sppb.Type, gcvs []spanner.GenericColumnValue) ([]spanner.GenericColumnValue, error) {
-	coerced := make([]spanner.GenericColumnValue, 0, len(gcvs))
-	for _, gcv := range gcvs {
+	coerced := make([]spanner.GenericColumnValue, len(gcvs))
+	for i, gcv := range gcvs {
 		if isNullGCV(gcv) {
-			coerced = append(coerced, gcvctor.NullOf(elemType))
+			coerced[i] = gcvctor.NullOf(elemType)
 			continue
 		}
 		if proto.Equal(gcv.Type, elemType) {
-			coerced = append(coerced, gcv)
+			coerced[i] = gcv
 			continue
 		}
 		elem, err := coerceArrayElement(elemType, gcv)
 		if err != nil {
 			return nil, err
 		}
-		coerced = append(coerced, elem)
+		coerced[i] = elem
 	}
 	return coerced, nil
 }
@@ -581,13 +581,6 @@ func coerceArrayElementToFloat64(gcv spanner.GenericColumnValue) (spanner.Generi
 	default:
 		return zeroGCV, fmt.Errorf("cannot coerce array element from %v to FLOAT64", gcv.Type.GetCode())
 	}
-}
-
-func nameOrEmpty(f *ast.StructField) string {
-	if f != nil && f.Ident != nil {
-		return f.Ident.Name
-	}
-	return ""
 }
 
 func gcvToValue(gcv spanner.GenericColumnValue) *structpb.Value {
