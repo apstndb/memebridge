@@ -136,6 +136,16 @@ func castGCVToInt64(src spanner.GenericColumnValue, exprSQL string) (spanner.Gen
 			return zeroGCV, err
 		}
 		return gcvctor.Int64Value(i), nil
+	case sppb.TypeCode_NUMERIC:
+		v, err := numericFromGCV(src)
+		if err != nil {
+			return zeroGCV, err
+		}
+		i, err := roundRatToInt64(v, exprSQL)
+		if err != nil {
+			return zeroGCV, err
+		}
+		return gcvctor.Int64Value(i), nil
 	default:
 		return zeroGCV, unsupportedCastError(src.Type.GetCode(), sppb.TypeCode_INT64, exprSQL)
 	}
@@ -155,6 +165,13 @@ func castGCVToFloat32(src spanner.GenericColumnValue, exprSQL string) (spanner.G
 			return zeroGCV, err
 		}
 		return float32ValueFromFloat64(v)
+	case sppb.TypeCode_NUMERIC:
+		v, err := numericFromGCV(src)
+		if err != nil {
+			return zeroGCV, err
+		}
+		f, _ := v.Float32()
+		return gcvctor.Float32Value(f), nil
 	case sppb.TypeCode_STRING:
 		v, err := stringFromGCV(src)
 		if err != nil {
@@ -184,6 +201,13 @@ func castGCVToFloat64(src spanner.GenericColumnValue, exprSQL string) (spanner.G
 			return zeroGCV, err
 		}
 		return gcvctor.Float64Value(v), nil
+	case sppb.TypeCode_NUMERIC:
+		v, err := numericFromGCV(src)
+		if err != nil {
+			return zeroGCV, err
+		}
+		f, _ := v.Float64()
+		return gcvctor.Float64Value(f), nil
 	case sppb.TypeCode_STRING:
 		v, err := stringFromGCV(src)
 		if err != nil {
@@ -207,6 +231,12 @@ func castGCVToNumeric(src spanner.GenericColumnValue, exprSQL string) (spanner.G
 			return zeroGCV, err
 		}
 		return gcvctor.NumericValueChecked(big.NewRat(v, 1))
+	case sppb.TypeCode_FLOAT32, sppb.TypeCode_FLOAT64:
+		v, err := float64FromGCV(src, 64)
+		if err != nil {
+			return zeroGCV, err
+		}
+		return float64ToNumericValue(v, exprSQL)
 	case sppb.TypeCode_STRING:
 		v, err := stringFromGCV(src)
 		if err != nil {
@@ -389,6 +419,18 @@ func float64FromGCV(gcv spanner.GenericColumnValue, bitSize int) (float64, error
 	}
 }
 
+func numericFromGCV(gcv spanner.GenericColumnValue) (*big.Rat, error) {
+	v, err := stringFromGCV(gcv)
+	if err != nil {
+		return nil, err
+	}
+	n, ok := new(big.Rat).SetString(v)
+	if !ok {
+		return nil, fmt.Errorf("invalid NUMERIC wire value: %q", v)
+	}
+	return n, nil
+}
+
 func parseSpannerInt64(v string) (int64, error) {
 	v = strings.TrimSpace(v)
 	unsigned := v
@@ -423,20 +465,72 @@ func float32ValueFromFloat64(v float64) (spanner.GenericColumnValue, error) {
 	return gcvctor.Float32Value(f32), nil
 }
 
-func roundFloatToInt64(v float64, exprSQL string) (int64, error) {
-	exprContext := ""
-	if exprSQL != "" {
-		exprContext = ": " + exprSQL
-	}
+func float64ToNumericValue(v float64, exprSQL string) (spanner.GenericColumnValue, error) {
 	if math.IsNaN(v) || math.IsInf(v, 0) {
-		return 0, fmt.Errorf("cannot cast non-finite floating-point value to INT64: %v%s", v, exprContext)
+		return zeroGCV, fmt.Errorf("cannot cast non-finite floating-point value to NUMERIC: %v%s", v, exprContextSuffix(exprSQL))
+	}
+	n := new(big.Rat).SetFloat64(v)
+	if n == nil {
+		return zeroGCV, fmt.Errorf("cannot cast floating-point value to NUMERIC: %v%s", v, exprContextSuffix(exprSQL))
+	}
+	n, err := roundRatToNumeric(n, exprSQL)
+	if err != nil {
+		return zeroGCV, err
+	}
+	return gcvctor.NumericValueChecked(n)
+}
+
+func roundFloatToInt64(v float64, exprSQL string) (int64, error) {
+	if math.IsNaN(v) || math.IsInf(v, 0) {
+		return 0, fmt.Errorf("cannot cast non-finite floating-point value to INT64: %v%s", v, exprContextSuffix(exprSQL))
 	}
 	// Spanner CAST(FLOAT* AS INT64) rounds halfway cases away from zero.
 	rounded := math.Round(v)
 	if rounded < minInt64Float || rounded >= maxInt64FloatExclusive {
-		return 0, fmt.Errorf("floating-point value out of INT64 range: %v%s", v, exprContext)
+		return 0, fmt.Errorf("floating-point value out of INT64 range: %v%s", v, exprContextSuffix(exprSQL))
 	}
 	return int64(rounded), nil
+}
+
+func roundRatToInt64(v *big.Rat, exprSQL string) (int64, error) {
+	rounded := roundRatHalfAwayFromZero(v)
+	if !rounded.IsInt64() {
+		return 0, fmt.Errorf("NUMERIC value out of INT64 range: %s%s", v.FloatString(spanner.NumericScaleDigits), exprContextSuffix(exprSQL))
+	}
+	return rounded.Int64(), nil
+}
+
+func roundRatToNumeric(v *big.Rat, exprSQL string) (*big.Rat, error) {
+	scale := pow10Int(spanner.NumericScaleDigits)
+	scaled := new(big.Rat).Mul(v, new(big.Rat).SetInt(scale))
+	rounded := roundRatHalfAwayFromZero(scaled)
+
+	maxScaled := new(big.Int).Sub(pow10Int(spanner.NumericPrecisionDigits), big.NewInt(1))
+	if new(big.Int).Abs(rounded).Cmp(maxScaled) > 0 {
+		return nil, fmt.Errorf("NUMERIC value out of range: %s%s", v.FloatString(spanner.NumericScaleDigits), exprContextSuffix(exprSQL))
+	}
+	return new(big.Rat).SetFrac(rounded, scale), nil
+}
+
+func roundRatHalfAwayFromZero(v *big.Rat) *big.Int {
+	abs := new(big.Rat).Abs(v)
+	abs.Add(abs, big.NewRat(1, 2))
+	rounded := new(big.Int).Quo(abs.Num(), abs.Denom())
+	if v.Sign() < 0 {
+		rounded.Neg(rounded)
+	}
+	return rounded
+}
+
+func pow10Int(exp int) *big.Int {
+	return new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(exp)), nil)
+}
+
+func exprContextSuffix(exprSQL string) string {
+	if exprSQL == "" {
+		return ""
+	}
+	return ": " + exprSQL
 }
 
 func formatNumericString(v string) string {
