@@ -163,6 +163,17 @@ func TestParseExpr(t *testing.T) {
 		{`CAST("Infinity" AS FLOAT32)`, gcvctor.Float32Value(float32(math.Inf(1)))},
 		{`CAST("-Infinity" AS FLOAT32)`, gcvctor.Float32Value(float32(math.Inf(-1)))},
 		{`CAST("94a01a73-d90a-432d-a03f-5db58ea8058f" AS UUID)`, gcvctor.StringBasedValueFromCode(sppb.TypeCode_UUID, `94a01a73-d90a-432d-a03f-5db58ea8058f`)},
+		{`SAFE_CAST("42" AS INT64)`, gcvctor.Int64Value(42)},
+		{`SAFE_CAST("12x" AS INT64)`, gcvctor.NullOf(typector.Int64())},
+		{`SAFE_CAST("maybe" AS BOOL)`, gcvctor.NullOf(typector.Bool())},
+		{`SAFE_CAST("not-a-number" AS NUMERIC)`, gcvctor.NullOf(typector.Numeric())},
+		{`SAFE_CAST(1e50 AS FLOAT32)`, gcvctor.NullOf(typector.Float32())},
+		{`SAFE_CAST(CAST("NaN" AS FLOAT64) AS INT64)`, gcvctor.NullOf(typector.Int64())},
+		{`SAFE_CAST(b"\xff" AS STRING)`, gcvctor.NullOf(typector.String())},
+		{`SAFE_CAST("not-a-date" AS DATE)`, gcvctor.NullOf(typector.Date())},
+		{`SAFE_CAST("not-a-timestamp" AS TIMESTAMP)`, gcvctor.NullOf(typector.Timestamp())},
+		{`SAFE_CAST("not-a-uuid" AS UUID)`, gcvctor.NullOf(typector.UUID())},
+		{`SAFE_CAST("not-an-interval" AS INTERVAL)`, gcvctor.NullOf(typector.Interval())},
 
 		{"PENDING_COMMIT_TIMESTAMP()", gcvctor.StringBasedValueFromCode(sppb.TypeCode_TIMESTAMP, "spanner.commit_timestamp()")},
 
@@ -278,6 +289,8 @@ func TestParseExpr_InvalidCastReturnsError(t *testing.T) {
 		`CAST("not-an-interval" AS INTERVAL)`,
 		`CAST(CAST("nan" AS FLOAT64) AS INT64)`,
 		`CAST(b"\xff" AS STRING)`,
+		`SAFE_CAST(TRUE AS BYTES)`,
+		`SAFE_CAST([1] AS INT64)`,
 	}
 	for _, input := range tests {
 		t.Run(input, func(t *testing.T) {
