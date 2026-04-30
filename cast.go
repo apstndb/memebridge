@@ -429,11 +429,35 @@ func numericFromGCV(gcv spanner.GenericColumnValue) (*big.Rat, error) {
 	if err != nil {
 		return nil, err
 	}
+	if !isDecimalNumericString(v) {
+		return nil, fmt.Errorf("invalid NUMERIC wire value: %q", v)
+	}
 	n, ok := new(big.Rat).SetString(v)
 	if !ok {
 		return nil, fmt.Errorf("invalid NUMERIC wire value: %q", v)
 	}
 	return n, nil
+}
+
+func isDecimalNumericString(v string) bool {
+	if v == "" {
+		return false
+	}
+	if v[0] == '+' || v[0] == '-' {
+		v = v[1:]
+	}
+	var hasDigit, hasDot bool
+	for _, r := range v {
+		switch {
+		case r >= '0' && r <= '9':
+			hasDigit = true
+		case r == '.' && !hasDot:
+			hasDot = true
+		default:
+			return false
+		}
+	}
+	return hasDigit
 }
 
 func parseSpannerInt64(v string) (int64, error) {
@@ -475,9 +499,6 @@ func float64ToNumericValue(v float64, exprSQL string) (spanner.GenericColumnValu
 		return zeroGCV, fmt.Errorf("cannot cast non-finite floating-point value to NUMERIC: %v%s", v, exprContextSuffix(exprSQL))
 	}
 	n := new(big.Rat).SetFloat64(v)
-	if n == nil {
-		return zeroGCV, fmt.Errorf("cannot cast floating-point value to NUMERIC: %v%s", v, exprContextSuffix(exprSQL))
-	}
 	n, err := roundRatToNumeric(n, exprSQL)
 	if err != nil {
 		return zeroGCV, err

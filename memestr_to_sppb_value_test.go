@@ -107,6 +107,7 @@ func TestParseExpr(t *testing.T) {
 		{`CAST(42 AS FLOAT64)`, gcvctor.Float64Value(42)},
 		{`CAST(42 AS NUMERIC)`, gcvctor.NumericValue(big.NewRat(42, 1))},
 		{`CAST(NUMERIC "3.5" AS INT64)`, gcvctor.Int64Value(4)},
+		{`CAST(NUMERIC ".5" AS INT64)`, gcvctor.Int64Value(1)},
 		{`CAST(NUMERIC "-0.5" AS INT64)`, gcvctor.Int64Value(-1)},
 		{`CAST(NUMERIC "3.25" AS FLOAT32)`, gcvctor.Float32Value(3.25)},
 		{`CAST(NUMERIC "3.25" AS FLOAT64)`, gcvctor.Float64Value(3.25)},
