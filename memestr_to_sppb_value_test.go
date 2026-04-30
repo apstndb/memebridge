@@ -270,6 +270,7 @@ func TestParseExpr(t *testing.T) {
 		{`SAFE_CAST(b"\xff" AS STRING)`, gcvctor.NullOf(typector.String())},
 		{`SAFE_CAST("not-a-date" AS DATE)`, gcvctor.NullOf(typector.Date())},
 		{`SAFE_CAST("not-a-timestamp" AS TIMESTAMP)`, gcvctor.NullOf(typector.Timestamp())},
+		{`SAFE_CAST("2020-06-02 00:00:00 Etc/Not_A_Zone" AS TIMESTAMP)`, gcvctor.NullOf(typector.Timestamp())},
 		{`SAFE_CAST("not-a-uuid" AS UUID)`, gcvctor.NullOf(typector.UUID())},
 		{`SAFE_CAST("not-an-interval" AS INTERVAL)`, gcvctor.NullOf(typector.Interval())},
 

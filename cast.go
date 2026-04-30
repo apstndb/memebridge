@@ -514,9 +514,7 @@ func parseSpannerTimestampForCast(v string) (time.Time, error) {
 	}
 
 	if hasNamedTimeZoneSuffix(v) {
-		if t, err := parseSpannerTimestampWithNamedLocation(v); err == nil {
-			return t, nil
-		}
+		return parseSpannerTimestampWithNamedLocation(v)
 	}
 
 	loc, err := loadSpannerDefaultLocation()
