@@ -98,6 +98,81 @@ func TestParseExpr(t *testing.T) {
 				[]spanner.GenericColumnValue{gcvctor.Int64Value(1), gcvctor.StringValue("foo"), gcvctor.Float64Value(3.14)},
 			)),
 		},
+		{
+			`STRUCT<n NUMERIC, f FLOAT64, f32 FLOAT32>(1, NUMERIC "2.5", 3.5)`,
+			must(gcvctor.StructValueOf(
+				[]string{"n", "f", "f32"},
+				[]spanner.GenericColumnValue{
+					gcvctor.NumericValue(big.NewRat(1, 1)),
+					gcvctor.Float64Value(2.5),
+					gcvctor.Float32Value(3.5),
+				},
+			)),
+		},
+		{
+			`STRUCT<d DATE, ts TIMESTAMP, u UUID, i INTERVAL>("1970-01-01", "1970-01-01T00:00:00Z", "94a01a73-d90a-432d-a03f-5db58ea8058f", "P1Y")`,
+			must(gcvctor.StructValueOf(
+				[]string{"d", "ts", "u", "i"},
+				[]spanner.GenericColumnValue{
+					gcvctor.DateValue(civil.Date{Year: 1970, Month: time.January, Day: 1}),
+					gcvctor.TimestampValue(time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)),
+					gcvctor.StringBasedValueFromCode(sppb.TypeCode_UUID, "94a01a73-d90a-432d-a03f-5db58ea8058f"),
+					gcvctor.StringBasedValueFromCode(sppb.TypeCode_INTERVAL, "P1Y"),
+				},
+			)),
+		},
+		{
+			`STRUCT<s STRING>(NULL)`,
+			must(gcvctor.StructValueOf(
+				[]string{"s"},
+				[]spanner.GenericColumnValue{gcvctor.NullOf(typector.String())},
+			)),
+		},
+		{
+			`STRUCT<n NUMERIC>(CAST(NULL AS INT64))`,
+			must(gcvctor.StructValueOf(
+				[]string{"n"},
+				[]spanner.GenericColumnValue{gcvctor.NullOf(typector.Numeric())},
+			)),
+		},
+		{
+			`STRUCT<a ARRAY<NUMERIC>>([1, NULL])`,
+			must(gcvctor.StructValueOf(
+				[]string{"a"},
+				[]spanner.GenericColumnValue{
+					must(gcvctor.ArrayValueOf(
+						typector.Numeric(),
+						gcvctor.NumericValue(big.NewRat(1, 1)),
+						gcvctor.NullOf(typector.Numeric()),
+					)),
+				},
+			)),
+		},
+		{
+			`STRUCT<a ARRAY<FLOAT64>>([1, NUMERIC "2.5"])`,
+			must(gcvctor.StructValueOf(
+				[]string{"a"},
+				[]spanner.GenericColumnValue{
+					must(gcvctor.ArrayValueOf(
+						typector.Float64(),
+						gcvctor.Float64Value(1),
+						gcvctor.Float64Value(2.5),
+					)),
+				},
+			)),
+		},
+		{
+			`STRUCT<a ARRAY<DATE>>(["1970-01-01"])`,
+			must(gcvctor.StructValueOf(
+				[]string{"a"},
+				[]spanner.GenericColumnValue{
+					must(gcvctor.ArrayValueOf(
+						typector.Date(),
+						gcvctor.DateValue(civil.Date{Year: 1970, Month: time.January, Day: 1}),
+					)),
+				},
+			)),
+		},
 		{"(1)", gcvctor.Int64Value(1)},
 		{`CAST(TRUE AS INT64)`, gcvctor.Int64Value(1)},
 		{`CAST(FALSE AS STRING)`, gcvctor.StringValue("false")},
@@ -291,6 +366,15 @@ func TestParseExpr_InvalidCastReturnsError(t *testing.T) {
 		`CAST(b"\xff" AS STRING)`,
 		`SAFE_CAST(TRUE AS BYTES)`,
 		`SAFE_CAST([1] AS INT64)`,
+		`STRUCT<i INT64>("1")`,
+		`STRUCT<b BYTES>("foo")`,
+		`STRUCT<i INT64>(CAST(NULL AS STRING))`,
+		`STRUCT<d DATE>(" 1970-01-01 ")`,
+		`STRUCT<u UUID>(" 94a01a73-d90a-432d-a03f-5db58ea8058f ")`,
+		`STRUCT<a ARRAY<INT64>>(["1"])`,
+		`STRUCT<a ARRAY<BYTES>>(["foo"])`,
+		`STRUCT<a ARRAY<DATE>>(["not-a-date"])`,
+		`STRUCT<a ARRAY<INT64>>([CAST(NULL AS STRING)])`,
 	}
 	for _, input := range tests {
 		t.Run(input, func(t *testing.T) {
