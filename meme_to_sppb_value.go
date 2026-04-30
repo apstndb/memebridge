@@ -185,13 +185,6 @@ func canCoerceTypedNullToField(fieldType, valueType *sppb.Type) bool {
 	switch fieldType.GetCode() {
 	case sppb.TypeCode_NUMERIC:
 		return valueType.GetCode() == sppb.TypeCode_INT64
-	case sppb.TypeCode_FLOAT32:
-		switch valueType.GetCode() {
-		case sppb.TypeCode_INT64, sppb.TypeCode_FLOAT64:
-			return true
-		default:
-			return false
-		}
 	case sppb.TypeCode_FLOAT64:
 		switch valueType.GetCode() {
 		case sppb.TypeCode_INT64, sppb.TypeCode_FLOAT32, sppb.TypeCode_NUMERIC:

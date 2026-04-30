@@ -136,13 +136,6 @@ func TestParseExpr(t *testing.T) {
 			)),
 		},
 		{
-			`STRUCT<f32 FLOAT32>(CAST(NULL AS INT64))`,
-			must(gcvctor.StructValueOf(
-				[]string{"f32"},
-				[]spanner.GenericColumnValue{gcvctor.NullOf(typector.Float32())},
-			)),
-		},
-		{
 			`STRUCT<a ARRAY<NUMERIC>>([1, NULL])`,
 			must(gcvctor.StructValueOf(
 				[]string{"a"},
@@ -176,18 +169,6 @@ func TestParseExpr(t *testing.T) {
 					must(gcvctor.ArrayValueOf(
 						typector.Date(),
 						gcvctor.DateValue(civil.Date{Year: 1970, Month: time.January, Day: 1}),
-					)),
-				},
-			)),
-		},
-		{
-			`STRUCT<a ARRAY<FLOAT32>>([CAST(NULL AS INT64)])`,
-			must(gcvctor.StructValueOf(
-				[]string{"a"},
-				[]spanner.GenericColumnValue{
-					must(gcvctor.ArrayValueOf(
-						typector.Float32(),
-						gcvctor.NullOf(typector.Float32()),
 					)),
 				},
 			)),
@@ -394,6 +375,8 @@ func TestParseExpr_InvalidCastReturnsError(t *testing.T) {
 		`STRUCT<a ARRAY<BYTES>>(["foo"])`,
 		`STRUCT<a ARRAY<DATE>>(["not-a-date"])`,
 		`STRUCT<a ARRAY<INT64>>([CAST(NULL AS STRING)])`,
+		`STRUCT<f32 FLOAT32>(CAST(NULL AS INT64))`,
+		`STRUCT<a ARRAY<FLOAT32>>([CAST(NULL AS INT64)])`,
 		`STRUCT<a ARRAY<FLOAT32>>([CAST(1 AS FLOAT64)])`,
 	}
 	for _, input := range tests {
