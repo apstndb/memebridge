@@ -39,6 +39,8 @@ var (
 
 	spannerTimestampZonedLayouts = [...]string{
 		time.RFC3339Nano,
+		"2006-01-02T15:04:05.999999999Z07",
+		"2006-01-02T15:04:05Z07",
 		"2006-01-02 15:04:05.999999999Z07:00",
 		"2006-01-02 15:04:05Z07:00",
 		"2006-01-02 15:04:05.999999999Z07",
@@ -530,7 +532,7 @@ func timestampStringValueForCast(v, exprSQL string) (spanner.GenericColumnValue,
 }
 
 func parseSpannerTimestampForCast(v string) (time.Time, error) {
-	if strings.HasSuffix(v, "z") {
+	if strings.HasSuffix(v, "z") && !hasNamedTimeZoneSuffix(v) {
 		v = strings.TrimSuffix(v, "z") + "Z"
 	}
 	v = normalizeSpannerTimestampOffset(v)
