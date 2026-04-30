@@ -135,7 +135,10 @@ func coerceTypedStructField(
 	if isNullGCV(gcv) && isUntypedNullLiteral(expr) {
 		return gcvctor.NullOf(fieldType), nil
 	}
-	if !canCoerceTypedStructField(fieldType, gcv.Type, expr) {
+	if isNullGCV(gcv) {
+		if canCoerceTypedNullToField(fieldType, gcv.Type) {
+			return gcvctor.NullOf(fieldType), nil
+		}
 		return zeroGCV, fmt.Errorf(
 			"cannot coerce typed struct field from %v to %v: %s",
 			gcv.Type.GetCode(),
@@ -143,8 +146,13 @@ func coerceTypedStructField(
 			expr.SQL(),
 		)
 	}
-	if isNullGCV(gcv) {
-		return gcvctor.NullOf(fieldType), nil
+	if !canCoerceTypedStructField(fieldType, gcv.Type, expr) {
+		return zeroGCV, fmt.Errorf(
+			"cannot coerce typed struct field from %v to %v: %s",
+			gcv.Type.GetCode(),
+			fieldType.GetCode(),
+			expr.SQL(),
+		)
 	}
 	if isStringLiteralCoercion(fieldType, gcv.Type, expr) {
 		return coerceStringLiteralToTypedStructField(fieldType, expr)
@@ -168,6 +176,29 @@ func canCoerceTypedStructField(fieldType, valueType *sppb.Type, expr ast.Expr) b
 		}
 	case sppb.TypeCode_DATE, sppb.TypeCode_TIMESTAMP, sppb.TypeCode_UUID, sppb.TypeCode_INTERVAL:
 		return valueType.GetCode() == sppb.TypeCode_STRING && isStringLiteral(expr)
+	default:
+		return false
+	}
+}
+
+func canCoerceTypedNullToField(fieldType, valueType *sppb.Type) bool {
+	switch fieldType.GetCode() {
+	case sppb.TypeCode_NUMERIC:
+		return valueType.GetCode() == sppb.TypeCode_INT64
+	case sppb.TypeCode_FLOAT32:
+		switch valueType.GetCode() {
+		case sppb.TypeCode_INT64, sppb.TypeCode_FLOAT64:
+			return true
+		default:
+			return false
+		}
+	case sppb.TypeCode_FLOAT64:
+		switch valueType.GetCode() {
+		case sppb.TypeCode_INT64, sppb.TypeCode_FLOAT32, sppb.TypeCode_NUMERIC:
+			return true
+		default:
+			return false
+		}
 	default:
 		return false
 	}
@@ -413,7 +444,7 @@ func arrayLiteralValueOf(
 	allowFallback bool,
 ) (spanner.GenericColumnValue, error) {
 	if !allowFallback {
-		coerced, err := coerceArrayElements(elemType, exprs, gcvs)
+		coerced, err := coerceArrayElementsStrict(elemType, exprs, gcvs)
 		if err != nil {
 			return zeroGCV, err
 		}
@@ -426,7 +457,7 @@ func arrayLiteralValueOf(
 			return zeroGCV, err
 		}
 
-		coerced, coerceErr := coerceArrayElements(elemType, exprs, gcvs)
+		coerced, coerceErr := coerceArrayElements(elemType, gcvs)
 		if coerceErr == nil {
 			return gcvctor.ArrayValueOf(elemType, coerced...)
 		}
@@ -448,41 +479,14 @@ func arrayLiteralValueOf(
 	return gcvctor.ArrayValueOf(elemType, normalized...)
 }
 
-func coerceArrayElements(
+func coerceArrayElementsStrict(
 	elemType *sppb.Type,
 	exprs []ast.Expr,
 	gcvs []spanner.GenericColumnValue,
 ) ([]spanner.GenericColumnValue, error) {
 	coerced := make([]spanner.GenericColumnValue, 0, len(gcvs))
 	for i, gcv := range gcvs {
-		if isNullGCV(gcv) {
-			if !isUntypedNullLiteral(exprs[i]) &&
-				!proto.Equal(gcv.Type, elemType) &&
-				!canCoerceArrayElementType(elemType, gcv.Type) {
-				return nil, fmt.Errorf(
-					"cannot coerce array element %d (%s) from %v to %v",
-					i,
-					exprs[i].SQL(),
-					gcv.Type.GetCode(),
-					elemType.GetCode(),
-				)
-			}
-			coerced = append(coerced, gcvctor.NullOf(elemType))
-			continue
-		}
-		if proto.Equal(gcv.Type, elemType) {
-			coerced = append(coerced, gcv)
-			continue
-		}
-		if isStringLiteralCoercion(elemType, gcv.Type, exprs[i]) {
-			elem, err := coerceStringLiteralToTypedStructField(elemType, exprs[i])
-			if err != nil {
-				return nil, fmt.Errorf("cannot coerce array element %d (%s): %w", i, exprs[i].SQL(), err)
-			}
-			coerced = append(coerced, elem)
-			continue
-		}
-		elem, err := coerceArrayElement(elemType, gcv)
+		elem, err := coerceTypedStructField(elemType, gcv, exprs[i])
 		if err != nil {
 			return nil, fmt.Errorf("cannot coerce array element %d (%s): %w", i, exprs[i].SQL(), err)
 		}
@@ -491,27 +495,24 @@ func coerceArrayElements(
 	return coerced, nil
 }
 
-func canCoerceArrayElementType(elemType, valueType *sppb.Type) bool {
-	switch elemType.GetCode() {
-	case sppb.TypeCode_NUMERIC:
-		return valueType.GetCode() == sppb.TypeCode_INT64
-	case sppb.TypeCode_FLOAT32:
-		switch valueType.GetCode() {
-		case sppb.TypeCode_INT64, sppb.TypeCode_FLOAT64:
-			return true
-		default:
-			return false
+func coerceArrayElements(elemType *sppb.Type, gcvs []spanner.GenericColumnValue) ([]spanner.GenericColumnValue, error) {
+	coerced := make([]spanner.GenericColumnValue, 0, len(gcvs))
+	for _, gcv := range gcvs {
+		if isNullGCV(gcv) {
+			coerced = append(coerced, gcvctor.NullOf(elemType))
+			continue
 		}
-	case sppb.TypeCode_FLOAT64:
-		switch valueType.GetCode() {
-		case sppb.TypeCode_INT64, sppb.TypeCode_FLOAT32, sppb.TypeCode_NUMERIC:
-			return true
-		default:
-			return false
+		if proto.Equal(gcv.Type, elemType) {
+			coerced = append(coerced, gcv)
+			continue
 		}
-	default:
-		return false
+		elem, err := coerceArrayElement(elemType, gcv)
+		if err != nil {
+			return nil, err
+		}
+		coerced = append(coerced, elem)
 	}
+	return coerced, nil
 }
 
 func coerceArrayElement(elemType *sppb.Type, gcv spanner.GenericColumnValue) (spanner.GenericColumnValue, error) {
