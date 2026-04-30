@@ -308,7 +308,14 @@ func castGCVToString(src spanner.GenericColumnValue, exprSQL string) (spanner.Ge
 		}
 		return gcvctor.StringValue(v), nil
 	case sppb.TypeCode_TIMESTAMP:
-		v, err := timestampFromGCV(src)
+		wireValue, err := stringFromGCV(src)
+		if err != nil {
+			return zeroGCV, err
+		}
+		if wireValue == commitTimestampPlaceholderString {
+			return gcvctor.StringValue(wireValue), nil
+		}
+		v, err := parseTimestampWireValueForCast(wireValue, exprSQL)
 		if err != nil {
 			return zeroGCV, err
 		}
@@ -369,7 +376,7 @@ func castGCVToDate(src spanner.GenericColumnValue, exprSQL string) (spanner.Gene
 		}
 		return gcvctor.DateStringValue(strings.TrimSpace(v))
 	case sppb.TypeCode_TIMESTAMP:
-		v, err := timestampFromGCV(src)
+		v, err := timestampFromGCV(src, exprSQL)
 		if err != nil {
 			return zeroGCV, err
 		}
@@ -477,12 +484,23 @@ func dateFromGCV(gcv spanner.GenericColumnValue) (civil.Date, error) {
 	return civil.ParseDate(v)
 }
 
-func timestampFromGCV(gcv spanner.GenericColumnValue) (time.Time, error) {
+func timestampFromGCV(gcv spanner.GenericColumnValue, exprSQL string) (time.Time, error) {
 	v, err := stringFromGCV(gcv)
 	if err != nil {
 		return time.Time{}, err
 	}
-	return parseSpannerTimestampForCast(strings.TrimSpace(v))
+	if v == commitTimestampPlaceholderString {
+		return time.Time{}, fmt.Errorf("cannot cast pending commit timestamp placeholder%s", exprContextSuffix(exprSQL))
+	}
+	return parseTimestampWireValueForCast(v, exprSQL)
+}
+
+func parseTimestampWireValueForCast(v, exprSQL string) (time.Time, error) {
+	t, err := parseSpannerTimestampForCast(strings.TrimSpace(v))
+	if err != nil {
+		return time.Time{}, fmt.Errorf("invalid TIMESTAMP wire value for cast%s: %q: %w", exprContextSuffix(exprSQL), v, err)
+	}
+	return t, nil
 }
 
 func timestampStringValueForCast(v, exprSQL string) (spanner.GenericColumnValue, error) {
@@ -528,7 +546,7 @@ func parseSpannerTimestampWithNamedLocation(v string) (time.Time, error) {
 	i := strings.LastIndexByte(v, ' ')
 	loc, err := time.LoadLocation(v[i+1:])
 	if err != nil {
-		return time.Time{}, err
+		return time.Time{}, fmt.Errorf("load timestamp time zone %q for %q: %w", v[i+1:], v, err)
 	}
 	return parseSpannerTimestampInLocation(v[:i], loc)
 }
@@ -552,7 +570,7 @@ func parseSpannerTimestampInLocation(v string, loc *time.Location) (time.Time, e
 			return t, nil
 		}
 	}
-	return time.Time{}, fmt.Errorf("unsupported timestamp format")
+	return time.Time{}, fmt.Errorf("unsupported timestamp format: %q", v)
 }
 
 func normalizeSpannerTimestampOffset(v string) string {
