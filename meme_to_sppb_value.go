@@ -236,6 +236,9 @@ func coerceStringLiteralToTypedStructField(
 	if !ok {
 		return zeroGCV, fmt.Errorf("expected string literal for typed struct field coercion: %s", expr.SQL())
 	}
+	// GoogleSQL literal coercion is stricter than CAST parsing here. Do not
+	// trim whitespace; only canonical literal text should satisfy an expected
+	// DATE, TIMESTAMP, UUID, or INTERVAL field type.
 	switch fieldType.GetCode() {
 	case sppb.TypeCode_DATE:
 		return gcvctor.DateStringValue(lit.Value)
