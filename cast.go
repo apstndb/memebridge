@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	_ "time/tzdata" // keep Spanner's default time zone available in minimal runtimes
 	"unicode/utf8"
@@ -33,6 +34,14 @@ var (
 
 	numericScaleFactor = pow10Int(spanner.NumericScaleDigits)
 	maxScaledNumeric   = new(big.Int).Sub(pow10Int(spanner.NumericPrecisionDigits), big.NewInt(1))
+
+	spannerDefaultLocation = sync.OnceValues(func() (*time.Location, error) {
+		loc, err := time.LoadLocation(spannerDefaultTimeZone)
+		if err != nil {
+			return nil, fmt.Errorf("load Spanner default time zone %q: %w", spannerDefaultTimeZone, err)
+		}
+		return loc, nil
+	})
 )
 
 func memefishCastExprToGCV(cast *ast.CastExpr) (spanner.GenericColumnValue, error) {
@@ -504,8 +513,10 @@ func parseSpannerTimestampForCast(v string) (time.Time, error) {
 		}
 	}
 
-	if t, err := parseSpannerTimestampWithNamedLocation(v); err == nil {
-		return t, nil
+	if hasNamedTimeZoneSuffix(v) {
+		if t, err := parseSpannerTimestampWithNamedLocation(v); err == nil {
+			return t, nil
+		}
 	}
 
 	loc, err := loadSpannerDefaultLocation()
@@ -517,14 +528,16 @@ func parseSpannerTimestampForCast(v string) (time.Time, error) {
 
 func parseSpannerTimestampWithNamedLocation(v string) (time.Time, error) {
 	i := strings.LastIndexByte(v, ' ')
-	if i < 0 {
-		return time.Time{}, fmt.Errorf("timestamp has no named time zone")
-	}
 	loc, err := time.LoadLocation(v[i+1:])
 	if err != nil {
 		return time.Time{}, err
 	}
 	return parseSpannerTimestampInLocation(v[:i], loc)
+}
+
+func hasNamedTimeZoneSuffix(v string) bool {
+	i := strings.LastIndexByte(v, ' ')
+	return i >= 0 && strings.Contains(v[i+1:], "/")
 }
 
 func parseSpannerTimestampInLocation(v string, loc *time.Location) (time.Time, error) {
@@ -563,11 +576,7 @@ func isASCIIDigit(b byte) bool {
 }
 
 func loadSpannerDefaultLocation() (*time.Location, error) {
-	loc, err := time.LoadLocation(spannerDefaultTimeZone)
-	if err != nil {
-		return nil, fmt.Errorf("load Spanner default time zone %q: %w", spannerDefaultTimeZone, err)
-	}
-	return loc, nil
+	return spannerDefaultLocation()
 }
 
 func formatSpannerTimestampString(t time.Time) string {
