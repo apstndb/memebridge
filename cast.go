@@ -37,6 +37,22 @@ var (
 	numericScaleFactor = pow10Int(spanner.NumericScaleDigits)
 	maxScaledNumeric   = new(big.Int).Sub(pow10Int(spanner.NumericPrecisionDigits), big.NewInt(1))
 
+	spannerTimestampZonedLayouts = [...]string{
+		time.RFC3339Nano,
+		"2006-01-02 15:04:05.999999999Z07:00",
+		"2006-01-02 15:04:05Z07:00",
+		"2006-01-02 15:04:05.999999999Z07",
+		"2006-01-02 15:04:05Z07",
+	}
+
+	spannerTimestampLocalLayouts = [...]string{
+		"2006-01-02",
+		"2006-01-02T15:04:05.999999999",
+		"2006-01-02T15:04:05",
+		"2006-01-02 15:04:05.999999999",
+		"2006-01-02 15:04:05",
+	}
+
 	spannerDefaultLocation = sync.OnceValues(func() (*time.Location, error) {
 		loc, err := time.LoadLocation(spannerDefaultTimeZone)
 		if err != nil {
@@ -519,14 +535,7 @@ func parseSpannerTimestampForCast(v string) (time.Time, error) {
 	}
 	v = normalizeSpannerTimestampOffset(v)
 
-	zonedLayouts := []string{
-		time.RFC3339Nano,
-		"2006-01-02 15:04:05.999999999Z07:00",
-		"2006-01-02 15:04:05Z07:00",
-		"2006-01-02 15:04:05.999999999Z07",
-		"2006-01-02 15:04:05Z07",
-	}
-	for _, layout := range zonedLayouts {
+	for _, layout := range spannerTimestampZonedLayouts {
 		t, err := time.Parse(layout, v)
 		if err == nil {
 			return t, nil
@@ -559,14 +568,7 @@ func hasNamedTimeZoneSuffix(v string) bool {
 }
 
 func parseSpannerTimestampInLocation(v string, loc *time.Location) (time.Time, error) {
-	localLayouts := []string{
-		"2006-01-02",
-		"2006-01-02T15:04:05.999999999",
-		"2006-01-02T15:04:05",
-		"2006-01-02 15:04:05.999999999",
-		"2006-01-02 15:04:05",
-	}
-	for _, layout := range localLayouts {
+	for _, layout := range spannerTimestampLocalLayouts {
 		t, err := time.ParseInLocation(layout, v, loc)
 		if err == nil {
 			return t, nil
