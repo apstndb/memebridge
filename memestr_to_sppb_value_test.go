@@ -130,6 +130,7 @@ func TestParseExpr(t *testing.T) {
 		{`CAST(" 3.14 " AS NUMERIC)`, gcvctor.NumericValue(big.NewRat(314, 100))},
 		{`CAST(1.125 AS NUMERIC)`, gcvctor.NumericValue(big.NewRat(1125, 1000))},
 		{`CAST(1.1234567895 AS NUMERIC)`, gcvctor.NumericValue(big.NewRat(1123456790, 1000000000))},
+		{`CAST(CAST("1.1234567895" AS FLOAT32) AS NUMERIC)`, gcvctor.NumericValue(big.NewRat(1123456836, 1000000000))},
 		{`CAST(-1.1234567895 AS NUMERIC)`, gcvctor.NumericValue(big.NewRat(-1123456790, 1000000000))},
 		{`CAST("inf" AS FLOAT64)`, gcvctor.Float64Value(math.Inf(1))},
 		{`CAST("foo" AS BYTES)`, gcvctor.BytesValue([]byte("foo"))},

@@ -23,6 +23,11 @@ const (
 	maxInt64FloatExclusive = 9223372036854775808.0
 )
 
+var (
+	numericScaleFactor = pow10Int(spanner.NumericScaleDigits)
+	maxScaledNumeric   = new(big.Int).Sub(pow10Int(spanner.NumericPrecisionDigits), big.NewInt(1))
+)
+
 func memefishCastExprToGCV(cast *ast.CastExpr) (spanner.GenericColumnValue, error) {
 	destType, err := MemefishTypeToSpannerpbType(cast.Type)
 	if err != nil {
@@ -501,15 +506,13 @@ func roundRatToInt64(v *big.Rat, exprSQL string) (int64, error) {
 }
 
 func roundRatToNumeric(v *big.Rat, exprSQL string) (*big.Rat, error) {
-	scale := pow10Int(spanner.NumericScaleDigits)
-	scaled := new(big.Rat).Mul(v, new(big.Rat).SetInt(scale))
+	scaled := new(big.Rat).Mul(v, new(big.Rat).SetInt(numericScaleFactor))
 	rounded := roundRatHalfAwayFromZero(scaled)
 
-	maxScaled := new(big.Int).Sub(pow10Int(spanner.NumericPrecisionDigits), big.NewInt(1))
-	if new(big.Int).Abs(rounded).Cmp(maxScaled) > 0 {
+	if new(big.Int).Abs(rounded).Cmp(maxScaledNumeric) > 0 {
 		return nil, fmt.Errorf("NUMERIC value out of range: %s%s", v.FloatString(spanner.NumericScaleDigits), exprContextSuffix(exprSQL))
 	}
-	return new(big.Rat).SetFrac(rounded, scale), nil
+	return new(big.Rat).SetFrac(rounded, numericScaleFactor), nil
 }
 
 func roundRatHalfAwayFromZero(v *big.Rat) *big.Int {
