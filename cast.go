@@ -552,7 +552,7 @@ func parseSpannerTimestampWithNamedLocation(v string) (time.Time, error) {
 
 func hasNamedTimeZoneSuffix(v string) bool {
 	i := strings.LastIndexByte(v, ' ')
-	return i >= 0 && strings.Contains(v[i+1:], "/")
+	return i >= 0 && i < len(v)-1 && isASCIIAlpha(v[i+1])
 }
 
 func parseSpannerTimestampInLocation(v string, loc *time.Location) (time.Time, error) {
@@ -574,16 +574,34 @@ func parseSpannerTimestampInLocation(v string, loc *time.Location) (time.Time, e
 
 func normalizeSpannerTimestampOffset(v string) string {
 	if len(v) < len("-0:00") {
-		return v
+		return normalizeSpannerTimestampHourOffset(v)
 	}
 	i := len(v) - len("-0:00")
 	if (v[i] != '+' && v[i] != '-') || v[i+2] != ':' {
-		return v
+		return normalizeSpannerTimestampHourOffset(v)
 	}
 	if !isASCIIDigit(v[i+1]) || !isASCIIDigit(v[i+3]) || !isASCIIDigit(v[i+4]) {
+		return normalizeSpannerTimestampHourOffset(v)
+	}
+	return v[:i+1] + "0" + v[i+1:]
+}
+
+func normalizeSpannerTimestampHourOffset(v string) string {
+	if len(v) < len("-0") {
+		return v
+	}
+	i := len(v) - len("-0")
+	if (v[i] != '+' && v[i] != '-') || !isASCIIDigit(v[i+1]) {
+		return v
+	}
+	if i > 0 && !isASCIIDigit(v[i-1]) {
 		return v
 	}
 	return v[:i+1] + "0" + v[i+1:]
+}
+
+func isASCIIAlpha(b byte) bool {
+	return (b >= 'A' && b <= 'Z') || (b >= 'a' && b <= 'z')
 }
 
 func isASCIIDigit(b byte) bool {
