@@ -622,7 +622,15 @@ func formatSpannerTimestampString(t time.Time) string {
 	}
 	// TIMESTAMP-to-STRING is formatted in Spanner's default cast time zone, so
 	// live Cloud Spanner emits -07/-08 rather than Z for UTC input instants.
-	return formatted + t.Format("-07")
+	return formatted + formatSpannerTimestampOffset(t)
+}
+
+func formatSpannerTimestampOffset(t time.Time) string {
+	_, offset := t.Zone()
+	if offset%3600 == 0 {
+		return t.Format("-07")
+	}
+	return t.Format("-07:00")
 }
 
 func formatSpannerTimestampFraction(ns int) string {
