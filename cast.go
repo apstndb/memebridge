@@ -2,6 +2,7 @@ package memebridge
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -24,6 +25,8 @@ const (
 )
 
 var (
+	errUnsupportedCast = errors.New("unsupported cast")
+
 	numericScaleFactor = pow10Int(spanner.NumericScaleDigits)
 	maxScaledNumeric   = new(big.Int).Sub(pow10Int(spanner.NumericPrecisionDigits), big.NewInt(1))
 )
@@ -46,7 +49,14 @@ func memefishCastExprToGCV(cast *ast.CastExpr) (spanner.GenericColumnValue, erro
 		return gcvctor.NullOf(destType), nil
 	}
 
-	return castGCV(src, destType, cast.Expr.SQL())
+	gcv, err := castGCV(src, destType, cast.Expr.SQL())
+	if err == nil {
+		return gcv, nil
+	}
+	if cast.Safe && !errors.Is(err, errUnsupportedCast) {
+		return gcvctor.NullOf(destType), nil
+	}
+	return zeroGCV, err
 }
 
 func castGCV(src spanner.GenericColumnValue, destType *sppb.Type, exprSQL string) (spanner.GenericColumnValue, error) {
@@ -582,7 +592,7 @@ func formatSpannerFloat(v float64, bitSize int) string {
 }
 
 func unsupportedCastError(srcCode, destCode sppb.TypeCode, exprSQL string) error {
-	err := fmt.Errorf("unsupported cast from %v to %v", srcCode, destCode)
+	err := fmt.Errorf("%w from %v to %v", errUnsupportedCast, srcCode, destCode)
 	if exprSQL != "" {
 		return fmt.Errorf("%w: %s", err, exprSQL)
 	}
