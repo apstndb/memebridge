@@ -25,6 +25,9 @@ import (
 const (
 	minInt64Float          = -9223372036854775808.0
 	maxInt64FloatExclusive = 9223372036854775808.0
+	// Spanner's temporal CAST documentation and live Cloud Spanner both use
+	// America/Los_Angeles for DATE/TIMESTAMP/STRING casts without an explicit
+	// time zone; this is distinct from TIMESTAMP's internal UTC storage.
 	spannerDefaultTimeZone = "America/Los_Angeles"
 )
 
@@ -617,6 +620,8 @@ func formatSpannerTimestampString(t time.Time) string {
 	if t.Nanosecond() != 0 {
 		formatted += formatSpannerTimestampFraction(t.Nanosecond())
 	}
+	// TIMESTAMP-to-STRING is formatted in Spanner's default cast time zone, so
+	// live Cloud Spanner emits -07/-08 rather than Z for UTC input instants.
 	return formatted + t.Format("-07")
 }
 
