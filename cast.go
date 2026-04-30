@@ -8,8 +8,11 @@ import (
 	"math/big"
 	"strconv"
 	"strings"
+	"time"
+	_ "time/tzdata" // keep Spanner's default time zone available in minimal runtimes
 	"unicode/utf8"
 
+	"cloud.google.com/go/civil"
 	"cloud.google.com/go/spanner"
 	sppb "cloud.google.com/go/spanner/apiv1/spannerpb"
 	"github.com/apstndb/spanvalue/gcvctor"
@@ -22,6 +25,7 @@ import (
 const (
 	minInt64Float          = -9223372036854775808.0
 	maxInt64FloatExclusive = 9223372036854775808.0
+	spannerDefaultTimeZone = "America/Los_Angeles"
 )
 
 var (
@@ -287,7 +291,6 @@ func castGCVToString(src spanner.GenericColumnValue, exprSQL string) (spanner.Ge
 		return gcvctor.StringValue(strconv.FormatBool(v)), nil
 	case sppb.TypeCode_INT64,
 		sppb.TypeCode_DATE,
-		sppb.TypeCode_TIMESTAMP,
 		sppb.TypeCode_UUID,
 		sppb.TypeCode_INTERVAL:
 		v, err := stringFromGCV(src)
@@ -295,6 +298,16 @@ func castGCVToString(src spanner.GenericColumnValue, exprSQL string) (spanner.Ge
 			return zeroGCV, err
 		}
 		return gcvctor.StringValue(v), nil
+	case sppb.TypeCode_TIMESTAMP:
+		v, err := timestampFromGCV(src)
+		if err != nil {
+			return zeroGCV, err
+		}
+		loc, err := loadSpannerDefaultLocation()
+		if err != nil {
+			return zeroGCV, err
+		}
+		return gcvctor.StringValue(formatSpannerTimestampString(v.In(loc))), nil
 	case sppb.TypeCode_NUMERIC:
 		v, err := stringFromGCV(src)
 		if err != nil {
@@ -339,25 +352,49 @@ func castGCVToBytes(src spanner.GenericColumnValue, exprSQL string) (spanner.Gen
 }
 
 func castGCVToDate(src spanner.GenericColumnValue, exprSQL string) (spanner.GenericColumnValue, error) {
-	if src.Type.GetCode() != sppb.TypeCode_STRING {
+	switch src.Type.GetCode() {
+	case sppb.TypeCode_STRING:
+		v, err := stringFromGCV(src)
+		if err != nil {
+			return zeroGCV, err
+		}
+		return gcvctor.DateStringValue(strings.TrimSpace(v))
+	case sppb.TypeCode_TIMESTAMP:
+		v, err := timestampFromGCV(src)
+		if err != nil {
+			return zeroGCV, err
+		}
+		loc, err := loadSpannerDefaultLocation()
+		if err != nil {
+			return zeroGCV, err
+		}
+		return gcvctor.DateValue(civil.DateOf(v.In(loc))), nil
+	default:
 		return zeroGCV, unsupportedCastError(src.Type.GetCode(), sppb.TypeCode_DATE, exprSQL)
 	}
-	v, err := stringFromGCV(src)
-	if err != nil {
-		return zeroGCV, err
-	}
-	return gcvctor.DateStringValue(strings.TrimSpace(v))
 }
 
 func castGCVToTimestamp(src spanner.GenericColumnValue, exprSQL string) (spanner.GenericColumnValue, error) {
-	if src.Type.GetCode() != sppb.TypeCode_STRING {
+	switch src.Type.GetCode() {
+	case sppb.TypeCode_STRING:
+		v, err := stringFromGCV(src)
+		if err != nil {
+			return zeroGCV, err
+		}
+		return timestampStringValueForCast(v, exprSQL)
+	case sppb.TypeCode_DATE:
+		v, err := dateFromGCV(src)
+		if err != nil {
+			return zeroGCV, err
+		}
+		loc, err := loadSpannerDefaultLocation()
+		if err != nil {
+			return zeroGCV, err
+		}
+		return gcvctor.TimestampValue(v.In(loc).UTC()), nil
+	default:
 		return zeroGCV, unsupportedCastError(src.Type.GetCode(), sppb.TypeCode_TIMESTAMP, exprSQL)
 	}
-	v, err := stringFromGCV(src)
-	if err != nil {
-		return zeroGCV, err
-	}
-	return gcvctor.TimestampStringValue(strings.TrimSpace(v))
 }
 
 func castStringBasedGCV(src spanner.GenericColumnValue, destCode sppb.TypeCode, exprSQL string) (spanner.GenericColumnValue, error) {
@@ -421,6 +458,135 @@ func int64FromGCV(gcv spanner.GenericColumnValue) (int64, error) {
 		return 0, err
 	}
 	return strconv.ParseInt(v, 10, 64)
+}
+
+func dateFromGCV(gcv spanner.GenericColumnValue) (civil.Date, error) {
+	v, err := stringFromGCV(gcv)
+	if err != nil {
+		return civil.Date{}, err
+	}
+	return civil.ParseDate(v)
+}
+
+func timestampFromGCV(gcv spanner.GenericColumnValue) (time.Time, error) {
+	v, err := stringFromGCV(gcv)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return parseSpannerTimestampForCast(strings.TrimSpace(v))
+}
+
+func timestampStringValueForCast(v, exprSQL string) (spanner.GenericColumnValue, error) {
+	t, err := parseSpannerTimestampForCast(strings.TrimSpace(v))
+	if err != nil {
+		return zeroGCV, fmt.Errorf("invalid TIMESTAMP literal for cast of %s to TIMESTAMP: %q: %w", exprSQL, v, err)
+	}
+	return gcvctor.TimestampValue(t.UTC()), nil
+}
+
+func parseSpannerTimestampForCast(v string) (time.Time, error) {
+	if strings.HasSuffix(v, "z") {
+		v = strings.TrimSuffix(v, "z") + "Z"
+	}
+	v = normalizeSpannerTimestampOffset(v)
+
+	zonedLayouts := []string{
+		time.RFC3339Nano,
+		"2006-01-02 15:04:05.999999999Z07:00",
+		"2006-01-02 15:04:05Z07:00",
+		"2006-01-02 15:04:05.999999999Z07",
+		"2006-01-02 15:04:05Z07",
+	}
+	for _, layout := range zonedLayouts {
+		t, err := time.Parse(layout, v)
+		if err == nil {
+			return t, nil
+		}
+	}
+
+	if t, err := parseSpannerTimestampWithNamedLocation(v); err == nil {
+		return t, nil
+	}
+
+	loc, err := loadSpannerDefaultLocation()
+	if err != nil {
+		return time.Time{}, err
+	}
+	return parseSpannerTimestampInLocation(v, loc)
+}
+
+func parseSpannerTimestampWithNamedLocation(v string) (time.Time, error) {
+	i := strings.LastIndexByte(v, ' ')
+	if i < 0 {
+		return time.Time{}, fmt.Errorf("timestamp has no named time zone")
+	}
+	loc, err := time.LoadLocation(v[i+1:])
+	if err != nil {
+		return time.Time{}, err
+	}
+	return parseSpannerTimestampInLocation(v[:i], loc)
+}
+
+func parseSpannerTimestampInLocation(v string, loc *time.Location) (time.Time, error) {
+	localLayouts := []string{
+		"2006-01-02",
+		"2006-01-02T15:04:05.999999999",
+		"2006-01-02T15:04:05",
+		"2006-01-02 15:04:05.999999999",
+		"2006-01-02 15:04:05",
+	}
+	for _, layout := range localLayouts {
+		t, err := time.ParseInLocation(layout, v, loc)
+		if err == nil {
+			return t, nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("unsupported timestamp format")
+}
+
+func normalizeSpannerTimestampOffset(v string) string {
+	if len(v) < len("-0:00") {
+		return v
+	}
+	i := len(v) - len("-0:00")
+	if (v[i] != '+' && v[i] != '-') || v[i+2] != ':' {
+		return v
+	}
+	if !isASCIIDigit(v[i+1]) || !isASCIIDigit(v[i+3]) || !isASCIIDigit(v[i+4]) {
+		return v
+	}
+	return v[:i+1] + "0" + v[i+1:]
+}
+
+func isASCIIDigit(b byte) bool {
+	return b >= '0' && b <= '9'
+}
+
+func loadSpannerDefaultLocation() (*time.Location, error) {
+	loc, err := time.LoadLocation(spannerDefaultTimeZone)
+	if err != nil {
+		return nil, fmt.Errorf("load Spanner default time zone %q: %w", spannerDefaultTimeZone, err)
+	}
+	return loc, nil
+}
+
+func formatSpannerTimestampString(t time.Time) string {
+	formatted := t.Format("2006-01-02 15:04:05")
+	if t.Nanosecond() != 0 {
+		formatted += formatSpannerTimestampFraction(t.Nanosecond())
+	}
+	return formatted + t.Format("-07")
+}
+
+func formatSpannerTimestampFraction(ns int) string {
+	switch {
+	case ns%1e6 == 0:
+		return fmt.Sprintf(".%03d", ns/1e6)
+	case ns%1e3 == 0:
+		return fmt.Sprintf(".%06d", ns/1e3)
+	default:
+		return fmt.Sprintf(".%09d", ns)
+	}
 }
 
 func float64FromGCV(gcv spanner.GenericColumnValue, bitSize int) (float64, error) {
