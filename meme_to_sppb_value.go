@@ -219,7 +219,10 @@ func coerceStringLiteralToTypedStructField(
 		return gcvctor.TimestampStringValue(lit.Value)
 	case sppb.TypeCode_UUID:
 		u, err := uuid.Parse(lit.Value)
-		if err != nil || !strings.EqualFold(u.String(), lit.Value) {
+		if err != nil {
+			return zeroGCV, fmt.Errorf("invalid UUID literal for typed struct field %q: %w", lit.Value, err)
+		}
+		if !strings.EqualFold(u.String(), lit.Value) {
 			return zeroGCV, fmt.Errorf("invalid UUID literal for typed struct field: %q", lit.Value)
 		}
 		return gcvctor.UUIDValue(u), nil
@@ -427,9 +430,6 @@ func arrayLiteralValueOf(
 		if coerceErr == nil {
 			return gcvctor.ArrayValueOf(elemType, coerced...)
 		}
-		if !allowFallback {
-			return zeroGCV, coerceErr
-		}
 
 		// Preserve the current permissive behavior for array literals whose
 		// element values do not all match elemType. This intentionally keeps the
@@ -459,7 +459,13 @@ func coerceArrayElements(
 			if !isUntypedNullLiteral(exprs[i]) &&
 				!proto.Equal(gcv.Type, elemType) &&
 				!canCoerceArrayElementType(elemType, gcv.Type) {
-				return nil, fmt.Errorf("cannot coerce array element from %v to %v", gcv.Type.GetCode(), elemType.GetCode())
+				return nil, fmt.Errorf(
+					"cannot coerce array element %d (%s) from %v to %v",
+					i,
+					exprs[i].SQL(),
+					gcv.Type.GetCode(),
+					elemType.GetCode(),
+				)
 			}
 			coerced = append(coerced, gcvctor.NullOf(elemType))
 			continue
@@ -471,14 +477,14 @@ func coerceArrayElements(
 		if isStringLiteralCoercion(elemType, gcv.Type, exprs[i]) {
 			elem, err := coerceStringLiteralToTypedStructField(elemType, exprs[i])
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("cannot coerce array element %d (%s): %w", i, exprs[i].SQL(), err)
 			}
 			coerced = append(coerced, elem)
 			continue
 		}
 		elem, err := coerceArrayElement(elemType, gcv)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("cannot coerce array element %d (%s): %w", i, exprs[i].SQL(), err)
 		}
 		coerced = append(coerced, elem)
 	}
