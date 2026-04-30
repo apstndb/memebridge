@@ -10,7 +10,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	_ "time/tzdata" // keep Spanner's default time zone available in minimal runtimes
 	"unicode/utf8"
 
 	"cloud.google.com/go/civil"
