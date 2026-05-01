@@ -404,8 +404,9 @@ func inferArrayElementType(exprs []ast.Expr, gcvs []spanner.GenericColumnValue) 
 		return typector.Int64()
 	}
 	if hasOther {
-		// When STRING literals are mixed with a single non-STRING type,
-		// prefer the non-STRING type so that string coercion can apply.
+		// When STRING values are mixed with a single non-STRING type,
+		// prefer the non-STRING type so that string coercion can apply,
+		// but only for scalar types that actually support STRING casts.
 		var nonStringType *sppb.Type
 		for i, expr := range exprs {
 			if _, ok := unwrapParenExpr(expr).(*ast.NullLiteral); ok {
@@ -420,7 +421,7 @@ func inferArrayElementType(exprs []ast.Expr, gcvs []spanner.GenericColumnValue) 
 				}
 			}
 		}
-		if nonStringType != nil {
+		if nonStringType != nil && isStringCastableTypeCode(nonStringType.GetCode()) {
 			return nonStringType
 		}
 		return first
@@ -439,6 +440,15 @@ func inferArrayElementType(exprs []ast.Expr, gcvs []spanner.GenericColumnValue) 
 		return typector.Int64()
 	default:
 		return first
+	}
+}
+
+func isStringCastableTypeCode(code sppb.TypeCode) bool {
+	switch code {
+	case sppb.TypeCode_ARRAY, sppb.TypeCode_STRUCT, sppb.TypeCode_JSON:
+		return false
+	default:
+		return true
 	}
 }
 
@@ -535,7 +545,7 @@ func coerceArrayElement(elemType *sppb.Type, gcv spanner.GenericColumnValue) (sp
 	// that are safe locally; CAST-only conversions such as FLOAT64 to NUMERIC
 	// and NUMERIC to FLOAT32 intentionally fall back to preserving wire values.
 
-	// Allow STRING literals to coerce to any type that CAST supports.
+	// Allow STRING values to coerce to any type that CAST supports.
 	if gcv.Type.GetCode() == sppb.TypeCode_STRING {
 		return castGCV(gcv, elemType, "")
 	}
