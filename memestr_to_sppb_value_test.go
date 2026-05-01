@@ -14,6 +14,7 @@ import (
 	"github.com/apstndb/spantype/typector"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/apstndb/memebridge"
@@ -81,7 +82,9 @@ func TestParseExpr(t *testing.T) {
 		{`ARRAY<FLOAT32>[1, 2.5]`, must(gcvctor.ArrayValueOf(typector.Float32(), gcvctor.Float32Value(1), gcvctor.Float32Value(2.5)))},
 		{`[1, "2"]`, must(gcvctor.ArrayValueOf(typector.Int64(), gcvctor.Int64Value(1), gcvctor.Int64Value(2)))},
 		{`["2020-01-01", DATE "2020-01-02"]`, must(gcvctor.ArrayValueOf(typector.Date(), gcvctor.DateValue(civil.Date{Year: 2020, Month: time.January, Day: 1}), gcvctor.DateValue(civil.Date{Year: 2020, Month: time.January, Day: 2})))},
-		{`["foo", NULL]`, must(gcvctor.ArrayValueOf(typector.String(), gcvctor.StringValue("foo"), gcvctor.NullOf(typector.String())))},
+		{`["2020-01-01T00:00:00Z", TIMESTAMP "2020-01-02T00:00:00Z"]`, must(gcvctor.ArrayValueOf(typector.Timestamp(), gcvctor.TimestampValue(time.Date(2020, time.January, 1, 0, 0, 0, 0, time.UTC)), gcvctor.TimestampValue(time.Date(2020, time.January, 2, 0, 0, 0, 0, time.UTC))))},
+		{`["94a01a73-d90a-432d-a03f-5db58ea8058f", CAST("94a01a73-d90a-432d-a03f-5db58ea8058f" AS UUID)]`, must(gcvctor.ArrayValueOf(typector.UUID(), gcvctor.UUIDValue(must(uuid.Parse("94a01a73-d90a-432d-a03f-5db58ea8058f"))), gcvctor.UUIDValue(must(uuid.Parse("94a01a73-d90a-432d-a03f-5db58ea8058f")))))},
+		{`["P1Y", CAST("P2Y" AS INTERVAL)]`, must(gcvctor.ArrayValueOf(typector.Interval(), gcvctor.StringBasedValueFromCode(sppb.TypeCode_INTERVAL, "P1Y"), gcvctor.StringBasedValueFromCode(sppb.TypeCode_INTERVAL, "P2Y")))},
 		{
 			`(1, "foo", 3.14)`,
 			must(gcvctor.StructValueOf(
