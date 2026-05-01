@@ -503,7 +503,13 @@ func castGCVToArray(src spanner.GenericColumnValue, destType *sppb.Type, exprSQL
 		return zeroGCV, unsupportedCastError(src.Type.GetCode(), sppb.TypeCode_ARRAY, exprSQL)
 	}
 	srcElemType := src.Type.GetArrayElementType()
+	if srcElemType == nil {
+		return zeroGCV, fmt.Errorf("malformed ARRAY source type: missing element type%s", exprContextSuffix(exprSQL))
+	}
 	destElemType := destType.GetArrayElementType()
+	if destElemType == nil {
+		return zeroGCV, fmt.Errorf("malformed ARRAY destination type: missing element type%s", exprContextSuffix(exprSQL))
+	}
 	listValue, ok := src.Value.GetKind().(*structpb.Value_ListValue)
 	if !ok {
 		return zeroGCV, fmt.Errorf("expected ARRAY wire value, got %T%s", src.Value.GetKind(), exprContextSuffix(exprSQL))

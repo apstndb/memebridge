@@ -467,6 +467,7 @@ func TestParseExpr_InvalidCastReturnsError(t *testing.T) {
 		`CAST(PENDING_COMMIT_TIMESTAMP() AS DATE)`,
 		`SAFE_CAST(TRUE AS BYTES)`,
 		`SAFE_CAST([1] AS INT64)`,
+		`SAFE_CAST([1] AS ARRAY<BYTES>)`,
 		`STRUCT<i INT64>("1")`,
 		`STRUCT<b BYTES>("foo")`,
 		`STRUCT<i INT64>(CAST(NULL AS STRING))`,
