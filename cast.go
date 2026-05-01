@@ -519,12 +519,19 @@ func castGCVToArray(src spanner.GenericColumnValue, destType *sppb.Type, exprSQL
 		if err != nil {
 			return zeroGCV, fmt.Errorf("cannot cast array element %d from %v to %v%s: %w", i, srcElemType, destElemType, exprContextSuffix(exprSQL), err)
 		}
-		coerced[i] = casted.Value
+		coerced[i] = gcvToValue(casted)
 	}
 	return spanner.GenericColumnValue{
 		Type:  destType,
 		Value: structpb.NewListValue(&structpb.ListValue{Values: coerced}),
 	}, nil
+}
+
+func gcvToValue(gcv spanner.GenericColumnValue) *structpb.Value {
+	if gcv.Value == nil {
+		return structpb.NewNullValue()
+	}
+	return gcv.Value
 }
 
 func castGCVToStruct(src spanner.GenericColumnValue, destType *sppb.Type, exprSQL string) (spanner.GenericColumnValue, error) {
@@ -556,7 +563,7 @@ func castGCVToStruct(src spanner.GenericColumnValue, destType *sppb.Type, exprSQ
 		if err != nil {
 			return zeroGCV, fmt.Errorf("cannot cast struct field %d from %v to %v%s: %w", i, srcFields[i].Type, destFields[i].Type, exprContextSuffix(exprSQL), err)
 		}
-		coerced[i] = casted.Value
+		coerced[i] = gcvToValue(casted)
 	}
 	return spanner.GenericColumnValue{
 		Type:  destType,

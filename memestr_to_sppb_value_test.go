@@ -278,6 +278,13 @@ func TestParseExpr(t *testing.T) {
 				[]spanner.GenericColumnValue{gcvctor.Int64Value(1), gcvctor.Int64Value(2)},
 			)),
 		},
+		{
+			`CAST(STRUCT(NULL AS foo) AS STRUCT<foo INT64>)`,
+			must(gcvctor.StructValueOf(
+				[]string{"foo"},
+				[]spanner.GenericColumnValue{gcvctor.NullOf(typector.Int64())},
+			)),
+		},
 		{`CAST(CAST(42 AS STRING) AS INT64)`, gcvctor.Int64Value(42)},
 		{`CAST("NaN" AS FLOAT64)`, gcvctor.Float64Value(math.NaN())},
 		{`CAST("Infinity" AS FLOAT64)`, gcvctor.Float64Value(math.Inf(1))},

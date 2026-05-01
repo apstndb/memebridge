@@ -582,10 +582,3 @@ func coerceArrayElementToFloat64(gcv spanner.GenericColumnValue) (spanner.Generi
 		return zeroGCV, fmt.Errorf("cannot coerce array element from %v to FLOAT64", gcv.Type.GetCode())
 	}
 }
-
-func gcvToValue(gcv spanner.GenericColumnValue) *structpb.Value {
-	if gcv.Value == nil {
-		return structpb.NewNullValue()
-	}
-	return gcv.Value
-}
