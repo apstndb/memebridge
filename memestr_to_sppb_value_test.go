@@ -254,11 +254,28 @@ func TestParseExpr(t *testing.T) {
 		{`CAST(CAST("00000000-0000-4000-8000-000000000000" AS UUID) AS BYTES)`, gcvctor.BytesValue([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})},
 		{`CAST(CAST("P1Y" AS INTERVAL) AS STRING)`, gcvctor.StringValue("P1Y")},
 		{`CAST([1] AS ARRAY<INT64>)`, must(gcvctor.ArrayValueOf(typector.Int64(), gcvctor.Int64Value(1)))},
+		{`CAST([1] AS ARRAY<FLOAT64>)`, must(gcvctor.ArrayValueOf(typector.Float64(), gcvctor.Float64Value(1.0)))},
+		{`CAST([NUMERIC "1.5"] AS ARRAY<FLOAT64>)`, must(gcvctor.ArrayValueOf(typector.Float64(), gcvctor.Float64Value(1.5)))},
+		{`CAST([1, NULL] AS ARRAY<FLOAT64>)`, must(gcvctor.ArrayValueOf(typector.Float64(), gcvctor.Float64Value(1.0), gcvctor.NullOf(typector.Float64())))},
 		{
 			`CAST(STRUCT(1 AS foo) AS STRUCT<foo INT64>)`,
 			must(gcvctor.StructValueOf(
 				[]string{"foo"},
 				[]spanner.GenericColumnValue{gcvctor.Int64Value(1)},
+			)),
+		},
+		{
+			`CAST(STRUCT(1 AS foo) AS STRUCT<foo FLOAT64>)`,
+			must(gcvctor.StructValueOf(
+				[]string{"foo"},
+				[]spanner.GenericColumnValue{gcvctor.Float64Value(1.0)},
+			)),
+		},
+		{
+			`CAST(STRUCT(1 AS foo, "2" AS bar) AS STRUCT<foo INT64, bar INT64>)`,
+			must(gcvctor.StructValueOf(
+				[]string{"foo", "bar"},
+				[]spanner.GenericColumnValue{gcvctor.Int64Value(1), gcvctor.Int64Value(2)},
 			)),
 		},
 		{`CAST(CAST(42 AS STRING) AS INT64)`, gcvctor.Int64Value(42)},
@@ -446,6 +463,9 @@ func TestParseExpr_InvalidCastReturnsError(t *testing.T) {
 		`STRUCT<f32 FLOAT32>(CAST(NULL AS INT64))`,
 		`STRUCT<a ARRAY<FLOAT32>>([CAST(NULL AS INT64)])`,
 		`STRUCT<a ARRAY<FLOAT32>>([CAST(1 AS FLOAT64)])`,
+		`CAST([1] AS ARRAY<BYTES>)`,
+		`CAST(STRUCT(1 AS foo) AS STRUCT<bar INT64>)`,
+		`CAST(STRUCT(1 AS foo, 2 AS bar) AS STRUCT<foo INT64>)`,
 	}
 	for _, input := range tests {
 		t.Run(input, func(t *testing.T) {
