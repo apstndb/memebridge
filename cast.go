@@ -402,7 +402,11 @@ func castGCVToDate(src spanner.GenericColumnValue, exprSQL string) (spanner.Gene
 		if err != nil {
 			return zeroGCV, err
 		}
-		return gcvctor.DateStringValue(v)
+		d, err := gcvctor.DateStringValue(v)
+		if err != nil {
+			return zeroGCV, fmt.Errorf("invalid DATE literal for cast of %s to DATE: %q: %w", exprSQL, v, err)
+		}
+		return d, nil
 	case sppb.TypeCode_TIMESTAMP:
 		v, err := timestampFromGCV(src, exprSQL)
 		if err != nil {
@@ -479,7 +483,6 @@ func castStringBasedGCV(src spanner.GenericColumnValue, destCode sppb.TypeCode, 
 	if err != nil {
 		return zeroGCV, err
 	}
-	v = strings.TrimSpace(v)
 	switch destCode {
 	case sppb.TypeCode_INTERVAL:
 		return gcvctor.IntervalStringValue(v)

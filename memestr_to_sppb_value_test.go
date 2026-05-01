@@ -251,7 +251,6 @@ func TestParseExpr(t *testing.T) {
 		{`CAST(CAST("94a01a73-d90a-432d-a03f-5db58ea8058f" AS UUID) AS STRING)`, gcvctor.StringValue("94a01a73-d90a-432d-a03f-5db58ea8058f")},
 		{`CAST(b"\x00\x00\x00\x00\x00\x00\x40\x00\x80\x00\x00\x00\x00\x00\x00\x00" AS UUID)`, gcvctor.StringBasedValueFromCode(sppb.TypeCode_UUID, `00000000-0000-4000-8000-000000000000`)},
 		{`CAST(CAST("00000000-0000-4000-8000-000000000000" AS UUID) AS BYTES)`, gcvctor.BytesValue([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})},
-		{`CAST(" P1Y " AS INTERVAL)`, gcvctor.StringBasedValueFromCode(sppb.TypeCode_INTERVAL, `P1Y`)},
 		{`CAST(CAST("P1Y" AS INTERVAL) AS STRING)`, gcvctor.StringValue("P1Y")},
 		{`CAST([1] AS ARRAY<INT64>)`, must(gcvctor.ArrayValueOf(typector.Int64(), gcvctor.Int64Value(1)))},
 		{
@@ -290,6 +289,7 @@ func TestParseExpr(t *testing.T) {
 		{`SAFE_CAST(" 1970-01-01 " AS DATE)`, gcvctor.NullOf(typector.Date())},
 		{`SAFE_CAST(" 1970-01-01T00:00:00Z " AS TIMESTAMP)`, gcvctor.NullOf(typector.Timestamp())},
 		{`SAFE_CAST(" 94a01a73-d90a-432d-a03f-5db58ea8058f " AS UUID)`, gcvctor.NullOf(typector.UUID())},
+		{`SAFE_CAST(" P1Y " AS INTERVAL)`, gcvctor.NullOf(typector.Interval())},
 		{`SAFE_CAST("not-an-interval" AS INTERVAL)`, gcvctor.NullOf(typector.Interval())},
 
 		{"PENDING_COMMIT_TIMESTAMP()", gcvctor.StringBasedValueFromCode(sppb.TypeCode_TIMESTAMP, "spanner.commit_timestamp()")},
@@ -408,6 +408,7 @@ func TestParseExpr_InvalidCastReturnsError(t *testing.T) {
 		`CAST(" 1970-01-01T00:00:00Z " AS TIMESTAMP)`,
 		`CAST(" 94a01a73-d90a-432d-a03f-5db58ea8058f " AS UUID)`,
 		`CAST("not-an-interval" AS INTERVAL)`,
+		`CAST(" P1Y " AS INTERVAL)`,
 		`CAST(CAST("nan" AS FLOAT64) AS INT64)`,
 		`CAST(b"\xff" AS STRING)`,
 		`CAST(PENDING_COMMIT_TIMESTAMP() AS DATE)`,
