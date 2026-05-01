@@ -443,6 +443,11 @@ func inferArrayElementType(exprs []ast.Expr, gcvs []spanner.GenericColumnValue) 
 	}
 }
 
+// isStringCastableTypeCode reports whether castGCV supports STRING -> code.
+// It returns true for all scalar types because castGCV validates the specific
+// conversion (e.g., parsing BOOL, INT64, BYTES). Complex types are excluded
+// because castGCV does not currently support STRING->JSON, and ARRAY/STRUCT
+// require structured parsing rather than a simple string cast.
 func isStringCastableTypeCode(code sppb.TypeCode) bool {
 	switch code {
 	case sppb.TypeCode_ARRAY, sppb.TypeCode_STRUCT, sppb.TypeCode_JSON:
