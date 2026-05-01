@@ -402,7 +402,11 @@ func castGCVToDate(src spanner.GenericColumnValue, exprSQL string) (spanner.Gene
 		if err != nil {
 			return zeroGCV, err
 		}
-		return gcvctor.DateStringValue(strings.TrimSpace(v))
+		d, err := gcvctor.DateStringValue(v)
+		if err != nil {
+			return zeroGCV, fmt.Errorf("invalid DATE literal for cast of %s to DATE: %q: %w", exprSQL, v, err)
+		}
+		return d, nil
 	case sppb.TypeCode_TIMESTAMP:
 		v, err := timestampFromGCV(src, exprSQL)
 		if err != nil {
@@ -448,7 +452,6 @@ func castGCVToUUID(src spanner.GenericColumnValue, exprSQL string) (spanner.Gene
 		if err != nil {
 			return zeroGCV, err
 		}
-		v = strings.TrimSpace(v)
 		u, err := uuid.Parse(v)
 		if err != nil || !strings.EqualFold(u.String(), v) {
 			return zeroGCV, fmt.Errorf("invalid UUID literal for cast of %s to UUID: %q", exprSQL, v)
@@ -480,7 +483,6 @@ func castStringBasedGCV(src spanner.GenericColumnValue, destCode sppb.TypeCode, 
 	if err != nil {
 		return zeroGCV, err
 	}
-	v = strings.TrimSpace(v)
 	switch destCode {
 	case sppb.TypeCode_INTERVAL:
 		return gcvctor.IntervalStringValue(v)
@@ -549,7 +551,7 @@ func timestampFromGCV(gcv spanner.GenericColumnValue, exprSQL string) (time.Time
 }
 
 func parseTimestampWireValueForCast(v, exprSQL string) (time.Time, error) {
-	t, err := parseSpannerTimestampForCast(strings.TrimSpace(v))
+	t, err := parseSpannerTimestampForCast(v)
 	if err != nil {
 		return time.Time{}, fmt.Errorf("invalid TIMESTAMP wire value for cast%s: %q: %w", exprContextSuffix(exprSQL), v, err)
 	}
@@ -557,7 +559,7 @@ func parseTimestampWireValueForCast(v, exprSQL string) (time.Time, error) {
 }
 
 func timestampStringValueForCast(v, exprSQL string) (spanner.GenericColumnValue, error) {
-	t, err := parseSpannerTimestampForCast(strings.TrimSpace(v))
+	t, err := parseSpannerTimestampForCast(v)
 	if err != nil {
 		return zeroGCV, fmt.Errorf("invalid TIMESTAMP literal for cast of %s to TIMESTAMP: %q: %w", exprSQL, v, err)
 	}
