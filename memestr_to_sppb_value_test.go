@@ -285,6 +285,13 @@ func TestParseExpr(t *testing.T) {
 				[]spanner.GenericColumnValue{gcvctor.NullOf(typector.Int64())},
 			)),
 		},
+		{
+			`CAST(STRUCT(1 AS foo) AS STRUCT<bar INT64>)`,
+			must(gcvctor.StructValueOf(
+				[]string{"bar"},
+				[]spanner.GenericColumnValue{gcvctor.Int64Value(1)},
+			)),
+		},
 		{`CAST(CAST(42 AS STRING) AS INT64)`, gcvctor.Int64Value(42)},
 		{`CAST("NaN" AS FLOAT64)`, gcvctor.Float64Value(math.NaN())},
 		{`CAST("Infinity" AS FLOAT64)`, gcvctor.Float64Value(math.Inf(1))},
@@ -471,7 +478,6 @@ func TestParseExpr_InvalidCastReturnsError(t *testing.T) {
 		`STRUCT<a ARRAY<FLOAT32>>([CAST(NULL AS INT64)])`,
 		`STRUCT<a ARRAY<FLOAT32>>([CAST(1 AS FLOAT64)])`,
 		`CAST([1] AS ARRAY<BYTES>)`,
-		`CAST(STRUCT(1 AS foo) AS STRUCT<bar INT64>)`,
 		`CAST(STRUCT(1 AS foo, 2 AS bar) AS STRUCT<foo INT64>)`,
 	}
 	for _, input := range tests {

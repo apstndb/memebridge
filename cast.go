@@ -504,9 +504,6 @@ func castGCVToArray(src spanner.GenericColumnValue, destType *sppb.Type, exprSQL
 	}
 	srcElemType := src.Type.GetArrayElementType()
 	destElemType := destType.GetArrayElementType()
-	if proto.Equal(srcElemType, destElemType) {
-		return spanner.GenericColumnValue{Type: destType, Value: src.Value}, nil
-	}
 	listValue, ok := src.Value.GetKind().(*structpb.Value_ListValue)
 	if !ok {
 		return zeroGCV, fmt.Errorf("expected ARRAY wire value, got %T", src.Value.GetKind())
@@ -542,11 +539,6 @@ func castGCVToStruct(src spanner.GenericColumnValue, destType *sppb.Type, exprSQ
 	destFields := destType.GetStructType().GetFields()
 	if len(srcFields) != len(destFields) {
 		return zeroGCV, fmt.Errorf("cannot cast STRUCT with %d fields to STRUCT with %d fields%s", len(srcFields), len(destFields), exprContextSuffix(exprSQL))
-	}
-	for i := range srcFields {
-		if srcFields[i].Name != destFields[i].Name {
-			return zeroGCV, fmt.Errorf("cannot cast STRUCT field %d: name mismatch %q vs %q%s", i, srcFields[i].Name, destFields[i].Name, exprContextSuffix(exprSQL))
-		}
 	}
 	listValue, ok := src.Value.GetKind().(*structpb.Value_ListValue)
 	if !ok {
