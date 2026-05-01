@@ -252,6 +252,8 @@ func TestParseExpr(t *testing.T) {
 		{`CAST(TIMESTAMP "2008-12-25 15:30:00 America/Los_Angeles" AS DATE)`, gcvctor.DateValue(civil.Date{Year: 2008, Month: time.December, Day: 25})},
 		{`CAST(" 94a01a73-d90a-432d-a03f-5db58ea8058f " AS UUID)`, gcvctor.StringBasedValueFromCode(sppb.TypeCode_UUID, `94a01a73-d90a-432d-a03f-5db58ea8058f`)},
 		{`CAST(CAST("94a01a73-d90a-432d-a03f-5db58ea8058f" AS UUID) AS STRING)`, gcvctor.StringValue("94a01a73-d90a-432d-a03f-5db58ea8058f")},
+		{`CAST(b"\x00\x00\x00\x00\x00\x00\x40\x00\x80\x00\x00\x00\x00\x00\x00\x00" AS UUID)`, gcvctor.StringBasedValueFromCode(sppb.TypeCode_UUID, `00000000-0000-4000-8000-000000000000`)},
+		{`CAST(CAST("00000000-0000-4000-8000-000000000000" AS UUID) AS BYTES)`, gcvctor.BytesValue([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})},
 		{`CAST(" P1Y " AS INTERVAL)`, gcvctor.StringBasedValueFromCode(sppb.TypeCode_INTERVAL, `P1Y`)},
 		{`CAST(CAST("P1Y" AS INTERVAL) AS STRING)`, gcvctor.StringValue("P1Y")},
 		{`CAST([1] AS ARRAY<INT64>)`, must(gcvctor.ArrayValueOf(typector.Int64(), gcvctor.Int64Value(1)))},
