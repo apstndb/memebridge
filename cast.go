@@ -512,11 +512,9 @@ func castGCVToArray(src spanner.GenericColumnValue, destType *sppb.Type, exprSQL
 	coerced := make([]*structpb.Value, len(values))
 	for i, v := range values {
 		elemGCV := spanner.GenericColumnValue{Type: srcElemType, Value: v}
-		// Pass empty exprSQL so the recursive cast doesn't duplicate expression
-		// context; this wrapper owns the context via exprContextSuffix.
-		casted, err := castGCV(elemGCV, destElemType, "")
+		casted, err := castGCV(elemGCV, destElemType, exprSQL)
 		if err != nil {
-			return zeroGCV, fmt.Errorf("cannot cast array element %d from %v to %v%s: %w", i, srcElemType.GetCode(), destElemType.GetCode(), exprContextSuffix(exprSQL), err)
+			return zeroGCV, fmt.Errorf("cannot cast array element %d from %v to %v: %w", i, srcElemType.GetCode(), destElemType.GetCode(), err)
 		}
 		coerced[i] = gcvToValue(casted)
 	}
@@ -563,11 +561,9 @@ func castGCVToStruct(src spanner.GenericColumnValue, destType *sppb.Type, exprSQ
 	coerced := make([]*structpb.Value, len(values))
 	for i, v := range values {
 		elemGCV := spanner.GenericColumnValue{Type: srcFields[i].Type, Value: v}
-		// Pass empty exprSQL so the recursive cast doesn't duplicate expression
-		// context; this wrapper owns the context via exprContextSuffix.
-		casted, err := castGCV(elemGCV, destFields[i].Type, "")
+		casted, err := castGCV(elemGCV, destFields[i].Type, exprSQL)
 		if err != nil {
-			return zeroGCV, fmt.Errorf("cannot cast struct field %d from %v to %v%s: %w", i, srcFields[i].Type.GetCode(), destFields[i].Type.GetCode(), exprContextSuffix(exprSQL), err)
+			return zeroGCV, fmt.Errorf("cannot cast struct field %d from %v to %v: %w", i, srcFields[i].Type.GetCode(), destFields[i].Type.GetCode(), err)
 		}
 		coerced[i] = gcvToValue(casted)
 	}
