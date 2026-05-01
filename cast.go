@@ -93,6 +93,9 @@ func castGCV(src spanner.GenericColumnValue, destType *sppb.Type, exprSQL string
 	if proto.Equal(src.Type, destType) {
 		return spanner.GenericColumnValue{Type: destType, Value: src.Value}, nil
 	}
+	if isNullGCV(src) {
+		return gcvctor.NullOf(destType), nil
+	}
 
 	switch destCode {
 	case sppb.TypeCode_BOOL:
@@ -117,6 +120,10 @@ func castGCV(src spanner.GenericColumnValue, destType *sppb.Type, exprSQL string
 		return castGCVToUUID(src, exprSQL)
 	case sppb.TypeCode_INTERVAL:
 		return castStringBasedGCV(src, destCode, exprSQL)
+	case sppb.TypeCode_ARRAY:
+		return castGCVToArray(src, destType, exprSQL)
+	case sppb.TypeCode_STRUCT:
+		return castGCVToStruct(src, destType, exprSQL)
 	default:
 		return zeroGCV, unsupportedCastError(srcCode, destCode, exprSQL)
 	}
@@ -489,6 +496,93 @@ func castStringBasedGCV(src spanner.GenericColumnValue, destCode sppb.TypeCode, 
 	default:
 		return gcvctor.StringBasedValueFromCode(destCode, v), nil
 	}
+}
+
+func castGCVToArray(src spanner.GenericColumnValue, destType *sppb.Type, exprSQL string) (spanner.GenericColumnValue, error) {
+	if src.Type.GetCode() != sppb.TypeCode_ARRAY {
+		return zeroGCV, unsupportedCastError(src.Type.GetCode(), sppb.TypeCode_ARRAY, exprSQL)
+	}
+	srcElemType := src.Type.GetArrayElementType()
+	if srcElemType == nil {
+		return zeroGCV, fmt.Errorf("malformed ARRAY source type: missing element type%s", exprContextSuffix(exprSQL))
+	}
+	destElemType := destType.GetArrayElementType()
+	if destElemType == nil {
+		return zeroGCV, fmt.Errorf("malformed ARRAY destination type: missing element type%s", exprContextSuffix(exprSQL))
+	}
+	listValue, ok := src.Value.GetKind().(*structpb.Value_ListValue)
+	if !ok {
+		return zeroGCV, fmt.Errorf("expected ARRAY wire value, got %T%s", src.Value.GetKind(), exprContextSuffix(exprSQL))
+	}
+	if listValue.ListValue == nil {
+		return zeroGCV, fmt.Errorf("malformed ARRAY wire value: missing ListValue detail%s", exprContextSuffix(exprSQL))
+	}
+	values := listValue.ListValue.Values
+	coerced := make([]*structpb.Value, len(values))
+	for i, v := range values {
+		elemGCV := spanner.GenericColumnValue{Type: srcElemType, Value: v}
+		casted, err := castGCV(elemGCV, destElemType, exprSQL)
+		if err != nil {
+			return zeroGCV, fmt.Errorf("cannot cast array element %d from %v to %v: %w", i, srcElemType.GetCode(), destElemType.GetCode(), err)
+		}
+		coerced[i] = gcvToValue(casted)
+	}
+	return spanner.GenericColumnValue{
+		Type:  destType,
+		Value: structpb.NewListValue(&structpb.ListValue{Values: coerced}),
+	}, nil
+}
+
+func gcvToValue(gcv spanner.GenericColumnValue) *structpb.Value {
+	if gcv.Value == nil {
+		return structpb.NewNullValue()
+	}
+	return gcv.Value
+}
+
+func castGCVToStruct(src spanner.GenericColumnValue, destType *sppb.Type, exprSQL string) (spanner.GenericColumnValue, error) {
+	if src.Type.GetCode() != sppb.TypeCode_STRUCT {
+		return zeroGCV, unsupportedCastError(src.Type.GetCode(), sppb.TypeCode_STRUCT, exprSQL)
+	}
+	srcStructType := src.Type.GetStructType()
+	if srcStructType == nil {
+		return zeroGCV, fmt.Errorf("malformed STRUCT source type%s", exprContextSuffix(exprSQL))
+	}
+	srcFields := srcStructType.GetFields()
+	destStructType := destType.GetStructType()
+	if destStructType == nil {
+		return zeroGCV, fmt.Errorf("malformed STRUCT destination type%s", exprContextSuffix(exprSQL))
+	}
+	destFields := destStructType.GetFields()
+	if len(srcFields) != len(destFields) {
+		return zeroGCV, fmt.Errorf("cannot cast STRUCT with %d fields to STRUCT with %d fields%s", len(srcFields), len(destFields), exprContextSuffix(exprSQL))
+	}
+	// Cloud Spanner ignores field names during STRUCT CAST and only requires
+	// the number of fields to match, so name parity is intentionally not enforced.
+	listValue, ok := src.Value.GetKind().(*structpb.Value_ListValue)
+	if !ok {
+		return zeroGCV, fmt.Errorf("expected STRUCT wire value, got %T%s", src.Value.GetKind(), exprContextSuffix(exprSQL))
+	}
+	if listValue.ListValue == nil {
+		return zeroGCV, fmt.Errorf("malformed STRUCT wire value: missing ListValue detail%s", exprContextSuffix(exprSQL))
+	}
+	values := listValue.ListValue.Values
+	if len(values) != len(srcFields) {
+		return zeroGCV, fmt.Errorf("STRUCT wire value has %d fields, but type has %d fields%s", len(values), len(srcFields), exprContextSuffix(exprSQL))
+	}
+	coerced := make([]*structpb.Value, len(values))
+	for i, v := range values {
+		elemGCV := spanner.GenericColumnValue{Type: srcFields[i].Type, Value: v}
+		casted, err := castGCV(elemGCV, destFields[i].Type, exprSQL)
+		if err != nil {
+			return zeroGCV, fmt.Errorf("cannot cast struct field %d from %v to %v: %w", i, srcFields[i].Type.GetCode(), destFields[i].Type.GetCode(), err)
+		}
+		coerced[i] = gcvToValue(casted)
+	}
+	return spanner.GenericColumnValue{
+		Type:  destType,
+		Value: structpb.NewListValue(&structpb.ListValue{Values: coerced}),
+	}, nil
 }
 
 func isNullGCV(gcv spanner.GenericColumnValue) bool {

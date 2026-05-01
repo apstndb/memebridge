@@ -254,10 +254,41 @@ func TestParseExpr(t *testing.T) {
 		{`CAST(CAST("00000000-0000-4000-8000-000000000000" AS UUID) AS BYTES)`, gcvctor.BytesValue([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})},
 		{`CAST(CAST("P1Y" AS INTERVAL) AS STRING)`, gcvctor.StringValue("P1Y")},
 		{`CAST([1] AS ARRAY<INT64>)`, must(gcvctor.ArrayValueOf(typector.Int64(), gcvctor.Int64Value(1)))},
+		{`CAST([1] AS ARRAY<FLOAT64>)`, must(gcvctor.ArrayValueOf(typector.Float64(), gcvctor.Float64Value(1.0)))},
+		{`CAST([NUMERIC "1.5"] AS ARRAY<FLOAT64>)`, must(gcvctor.ArrayValueOf(typector.Float64(), gcvctor.Float64Value(1.5)))},
+		{`CAST([1, NULL] AS ARRAY<FLOAT64>)`, must(gcvctor.ArrayValueOf(typector.Float64(), gcvctor.Float64Value(1.0), gcvctor.NullOf(typector.Float64())))},
 		{
 			`CAST(STRUCT(1 AS foo) AS STRUCT<foo INT64>)`,
 			must(gcvctor.StructValueOf(
 				[]string{"foo"},
+				[]spanner.GenericColumnValue{gcvctor.Int64Value(1)},
+			)),
+		},
+		{
+			`CAST(STRUCT(1 AS foo) AS STRUCT<foo FLOAT64>)`,
+			must(gcvctor.StructValueOf(
+				[]string{"foo"},
+				[]spanner.GenericColumnValue{gcvctor.Float64Value(1.0)},
+			)),
+		},
+		{
+			`CAST(STRUCT(1 AS foo, "2" AS bar) AS STRUCT<foo INT64, bar INT64>)`,
+			must(gcvctor.StructValueOf(
+				[]string{"foo", "bar"},
+				[]spanner.GenericColumnValue{gcvctor.Int64Value(1), gcvctor.Int64Value(2)},
+			)),
+		},
+		{
+			`CAST(STRUCT(NULL AS foo) AS STRUCT<foo INT64>)`,
+			must(gcvctor.StructValueOf(
+				[]string{"foo"},
+				[]spanner.GenericColumnValue{gcvctor.NullOf(typector.Int64())},
+			)),
+		},
+		{
+			`CAST(STRUCT(1 AS foo) AS STRUCT<bar INT64>)`,
+			must(gcvctor.StructValueOf(
+				[]string{"bar"},
 				[]spanner.GenericColumnValue{gcvctor.Int64Value(1)},
 			)),
 		},
@@ -292,6 +323,8 @@ func TestParseExpr(t *testing.T) {
 		{`SAFE_CAST(" 94a01a73-d90a-432d-a03f-5db58ea8058f " AS UUID)`, gcvctor.NullOf(typector.UUID())},
 		{`SAFE_CAST(" P1Y " AS INTERVAL)`, gcvctor.NullOf(typector.Interval())},
 		{`SAFE_CAST("not-an-interval" AS INTERVAL)`, gcvctor.NullOf(typector.Interval())},
+		{`SAFE_CAST(["not-a-date"] AS ARRAY<DATE>)`, gcvctor.NullOf(typector.ElemTypeToArrayType(typector.Date()))},
+		{`SAFE_CAST(STRUCT("not-a-date" AS foo) AS STRUCT<foo DATE>)`, gcvctor.NullOf(typector.NameTypeToStructType("foo", typector.Date()))},
 
 		{"PENDING_COMMIT_TIMESTAMP()", gcvctor.StringBasedValueFromCode(sppb.TypeCode_TIMESTAMP, "spanner.commit_timestamp()")},
 
@@ -434,6 +467,7 @@ func TestParseExpr_InvalidCastReturnsError(t *testing.T) {
 		`CAST(PENDING_COMMIT_TIMESTAMP() AS DATE)`,
 		`SAFE_CAST(TRUE AS BYTES)`,
 		`SAFE_CAST([1] AS INT64)`,
+		`SAFE_CAST([1] AS ARRAY<BYTES>)`,
 		`STRUCT<i INT64>("1")`,
 		`STRUCT<b BYTES>("foo")`,
 		`STRUCT<i INT64>(CAST(NULL AS STRING))`,
@@ -446,6 +480,8 @@ func TestParseExpr_InvalidCastReturnsError(t *testing.T) {
 		`STRUCT<f32 FLOAT32>(CAST(NULL AS INT64))`,
 		`STRUCT<a ARRAY<FLOAT32>>([CAST(NULL AS INT64)])`,
 		`STRUCT<a ARRAY<FLOAT32>>([CAST(1 AS FLOAT64)])`,
+		`CAST([1] AS ARRAY<BYTES>)`,
+		`CAST(STRUCT(1 AS foo, 2 AS bar) AS STRUCT<foo INT64>)`,
 	}
 	for _, input := range tests {
 		t.Run(input, func(t *testing.T) {
