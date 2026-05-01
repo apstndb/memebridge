@@ -3,6 +3,7 @@ package memebridge_test
 import (
 	"math"
 	"math/big"
+	"strings"
 	"testing"
 	"time"
 	_ "time/tzdata" // ensure IANA tzdata is available for tests on minimal runtimes
@@ -344,6 +345,25 @@ func TestParseExpr(t *testing.T) {
 				t.Errorf("should not fail, but err: %v", err)
 			}
 
+			if diff := cmp.Diff(tt.want, got, protocmp.Transform(), cmpopts.EquateNaNs()); diff != "" {
+				t.Errorf("mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+
+	// SAFE_CAST success parity: every CAST success case should also succeed
+	// under SAFE_CAST and return the same value.
+	for _, tt := range tests {
+		idx := strings.Index(tt.input, "CAST(")
+		if idx < 0 || strings.Contains(tt.input, "SAFE_CAST(") {
+			continue
+		}
+		safeInput := tt.input[:idx] + "SAFE_CAST(" + tt.input[idx+len("CAST("):]
+		t.Run(safeInput, func(t *testing.T) {
+			got, err := memebridge.ParseExpr("", safeInput)
+			if err != nil {
+				t.Errorf("should not fail, but err: %v", err)
+			}
 			if diff := cmp.Diff(tt.want, got, protocmp.Transform(), cmpopts.EquateNaNs()); diff != "" {
 				t.Errorf("mismatch (-want +got):\n%s", diff)
 			}
