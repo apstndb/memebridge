@@ -506,7 +506,7 @@ func castGCVToArray(src spanner.GenericColumnValue, destType *sppb.Type, exprSQL
 	destElemType := destType.GetArrayElementType()
 	listValue, ok := src.Value.GetKind().(*structpb.Value_ListValue)
 	if !ok {
-		return zeroGCV, fmt.Errorf("expected ARRAY wire value, got %T", src.Value.GetKind())
+		return zeroGCV, fmt.Errorf("expected ARRAY wire value, got %T%s", src.Value.GetKind(), exprContextSuffix(exprSQL))
 	}
 	values := listValue.ListValue.Values
 	coerced := make([]*structpb.Value, len(values))
@@ -514,7 +514,7 @@ func castGCVToArray(src spanner.GenericColumnValue, destType *sppb.Type, exprSQL
 		elemGCV := spanner.GenericColumnValue{Type: srcElemType, Value: v}
 		casted, err := castGCV(elemGCV, destElemType, exprSQL)
 		if err != nil {
-			return zeroGCV, fmt.Errorf("cannot cast array element %d from %v to %v%s: %w", i, srcElemType, destElemType, exprContextSuffix(exprSQL), err)
+			return zeroGCV, fmt.Errorf("cannot cast array element %d from %v to %v%s: %w", i, srcElemType.GetCode(), destElemType.GetCode(), exprContextSuffix(exprSQL), err)
 		}
 		coerced[i] = gcvToValue(casted)
 	}
@@ -542,7 +542,7 @@ func castGCVToStruct(src spanner.GenericColumnValue, destType *sppb.Type, exprSQ
 	}
 	listValue, ok := src.Value.GetKind().(*structpb.Value_ListValue)
 	if !ok {
-		return zeroGCV, fmt.Errorf("expected STRUCT wire value, got %T", src.Value.GetKind())
+		return zeroGCV, fmt.Errorf("expected STRUCT wire value, got %T%s", src.Value.GetKind(), exprContextSuffix(exprSQL))
 	}
 	values := listValue.ListValue.Values
 	if len(values) != len(destFields) {
@@ -553,7 +553,7 @@ func castGCVToStruct(src spanner.GenericColumnValue, destType *sppb.Type, exprSQ
 		elemGCV := spanner.GenericColumnValue{Type: srcFields[i].Type, Value: v}
 		casted, err := castGCV(elemGCV, destFields[i].Type, exprSQL)
 		if err != nil {
-			return zeroGCV, fmt.Errorf("cannot cast struct field %d from %v to %v%s: %w", i, srcFields[i].Type, destFields[i].Type, exprContextSuffix(exprSQL), err)
+			return zeroGCV, fmt.Errorf("cannot cast struct field %d from %v to %v%s: %w", i, srcFields[i].Type.GetCode(), destFields[i].Type.GetCode(), exprContextSuffix(exprSQL), err)
 		}
 		coerced[i] = gcvToValue(casted)
 	}
