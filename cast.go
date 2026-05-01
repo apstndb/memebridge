@@ -113,7 +113,9 @@ func castGCV(src spanner.GenericColumnValue, destType *sppb.Type, exprSQL string
 		return castGCVToDate(src, exprSQL)
 	case sppb.TypeCode_TIMESTAMP:
 		return castGCVToTimestamp(src, exprSQL)
-	case sppb.TypeCode_UUID, sppb.TypeCode_INTERVAL:
+	case sppb.TypeCode_UUID:
+		return castGCVToUUID(src, exprSQL)
+	case sppb.TypeCode_INTERVAL:
 		return castStringBasedGCV(src, destCode, exprSQL)
 	default:
 		return zeroGCV, unsupportedCastError(srcCode, destCode, exprSQL)
@@ -372,14 +374,25 @@ func castGCVToString(src spanner.GenericColumnValue, exprSQL string) (spanner.Ge
 }
 
 func castGCVToBytes(src spanner.GenericColumnValue, exprSQL string) (spanner.GenericColumnValue, error) {
-	if src.Type.GetCode() != sppb.TypeCode_STRING {
-		return zeroGCV, unsupportedCastError(src.Type.GetCode(), sppb.TypeCode_BYTES, exprSQL)
+	code := src.Type.GetCode()
+	if code != sppb.TypeCode_STRING && code != sppb.TypeCode_UUID {
+		return zeroGCV, unsupportedCastError(code, sppb.TypeCode_BYTES, exprSQL)
 	}
+
 	v, err := stringFromGCV(src)
 	if err != nil {
 		return zeroGCV, err
 	}
-	return gcvctor.BytesValue([]byte(v)), nil
+
+	if code == sppb.TypeCode_STRING {
+		return gcvctor.BytesValue([]byte(v)), nil
+	}
+
+	u, err := uuid.Parse(v)
+	if err != nil {
+		return zeroGCV, fmt.Errorf("invalid UUID value %q for cast of %s to BYTES: %w", v, exprSQL, err)
+	}
+	return gcvctor.BytesValue(u[:]), nil
 }
 
 func castGCVToDate(src spanner.GenericColumnValue, exprSQL string) (spanner.GenericColumnValue, error) {
@@ -428,6 +441,37 @@ func castGCVToTimestamp(src spanner.GenericColumnValue, exprSQL string) (spanner
 	}
 }
 
+func castGCVToUUID(src spanner.GenericColumnValue, exprSQL string) (spanner.GenericColumnValue, error) {
+	switch src.Type.GetCode() {
+	case sppb.TypeCode_STRING:
+		v, err := stringFromGCV(src)
+		if err != nil {
+			return zeroGCV, err
+		}
+		v = strings.TrimSpace(v)
+		u, err := uuid.Parse(v)
+		if err != nil || !strings.EqualFold(u.String(), v) {
+			return zeroGCV, fmt.Errorf("invalid UUID literal for cast of %s to UUID: %q", exprSQL, v)
+		}
+		return gcvctor.UUIDValue(u), nil
+	case sppb.TypeCode_BYTES:
+		v, err := bytesFromGCV(src)
+		if err != nil {
+			return zeroGCV, err
+		}
+		if len(v) != 16 {
+			return zeroGCV, fmt.Errorf("invalid BYTES length for cast of %s to UUID: expected 16, got %d", exprSQL, len(v))
+		}
+		u, err := uuid.FromBytes(v)
+		if err != nil {
+			return zeroGCV, fmt.Errorf("invalid BYTES value for cast of %s to UUID: %w", exprSQL, err)
+		}
+		return gcvctor.UUIDValue(u), nil
+	default:
+		return zeroGCV, unsupportedCastError(src.Type.GetCode(), sppb.TypeCode_UUID, exprSQL)
+	}
+}
+
 func castStringBasedGCV(src spanner.GenericColumnValue, destCode sppb.TypeCode, exprSQL string) (spanner.GenericColumnValue, error) {
 	if src.Type.GetCode() != sppb.TypeCode_STRING {
 		return zeroGCV, unsupportedCastError(src.Type.GetCode(), destCode, exprSQL)
@@ -438,12 +482,6 @@ func castStringBasedGCV(src spanner.GenericColumnValue, destCode sppb.TypeCode, 
 	}
 	v = strings.TrimSpace(v)
 	switch destCode {
-	case sppb.TypeCode_UUID:
-		u, err := uuid.Parse(v)
-		if err != nil || !strings.EqualFold(u.String(), v) {
-			return zeroGCV, fmt.Errorf("invalid UUID literal for cast of %s to UUID: %q", exprSQL, v)
-		}
-		return gcvctor.UUIDValue(u), nil
 	case sppb.TypeCode_INTERVAL:
 		return gcvctor.IntervalStringValue(v)
 	default:
