@@ -404,6 +404,26 @@ func inferArrayElementType(exprs []ast.Expr, gcvs []spanner.GenericColumnValue) 
 		return typector.Int64()
 	}
 	if hasOther {
+		// When STRING values are mixed with a single non-STRING type,
+		// prefer the non-STRING type so that string coercion can apply,
+		// but only for scalar types that actually support STRING casts.
+		var nonStringType *sppb.Type
+		for i, expr := range exprs {
+			if _, ok := unwrapParenExpr(expr).(*ast.NullLiteral); ok {
+				continue
+			}
+			typ := gcvs[i].Type
+			if typ.GetCode() != sppb.TypeCode_STRING {
+				if nonStringType == nil {
+					nonStringType = typ
+				} else if !proto.Equal(nonStringType, typ) {
+					return first
+				}
+			}
+		}
+		if nonStringType != nil && isStringCastableTypeCode(nonStringType.GetCode()) {
+			return nonStringType
+		}
 		return first
 	}
 
@@ -420,6 +440,20 @@ func inferArrayElementType(exprs []ast.Expr, gcvs []spanner.GenericColumnValue) 
 		return typector.Int64()
 	default:
 		return first
+	}
+}
+
+// isStringCastableTypeCode reports whether castGCV supports STRING -> code.
+// It returns true for all scalar types because castGCV validates the specific
+// conversion (e.g., parsing BOOL, INT64, BYTES). Complex types are excluded
+// because castGCV does not currently support STRING->JSON, and ARRAY/STRUCT
+// require structured parsing rather than a simple string cast.
+func isStringCastableTypeCode(code sppb.TypeCode) bool {
+	switch code {
+	case sppb.TypeCode_ARRAY, sppb.TypeCode_STRUCT, sppb.TypeCode_JSON:
+		return false
+	default:
+		return true
 	}
 }
 
@@ -515,6 +549,12 @@ func coerceArrayElement(elemType *sppb.Type, gcv spanner.GenericColumnValue) (sp
 	// This is not the full CAST matrix. It only models array literal coercions
 	// that are safe locally; CAST-only conversions such as FLOAT64 to NUMERIC
 	// and NUMERIC to FLOAT32 intentionally fall back to preserving wire values.
+
+	// Allow STRING values to coerce to any type that CAST supports.
+	if gcv.Type.GetCode() == sppb.TypeCode_STRING {
+		return castGCV(gcv, elemType, "")
+	}
+
 	switch elemType.GetCode() {
 	case sppb.TypeCode_NUMERIC:
 		if gcv.Type.GetCode() == sppb.TypeCode_INT64 {
@@ -529,6 +569,7 @@ func coerceArrayElement(elemType *sppb.Type, gcv spanner.GenericColumnValue) (sp
 	case sppb.TypeCode_FLOAT64:
 		return coerceArrayElementToFloat64(gcv)
 	}
+
 	return zeroGCV, fmt.Errorf("cannot coerce array element from %v to %v", gcv.Type.GetCode(), elemType.GetCode())
 }
 
@@ -568,13 +609,9 @@ func coerceArrayElementToFloat64(gcv spanner.GenericColumnValue) (spanner.Generi
 		}
 		return gcvctor.Float64Value(v), nil
 	case sppb.TypeCode_NUMERIC:
-		v, err := stringFromGCV(gcv)
+		n, err := numericFromGCV(gcv)
 		if err != nil {
 			return zeroGCV, err
-		}
-		n, ok := new(big.Rat).SetString(v)
-		if !ok {
-			return zeroGCV, fmt.Errorf("invalid NUMERIC wire value: %q", v)
 		}
 		f, _ := n.Float64()
 		return gcvctor.Float64Value(f), nil

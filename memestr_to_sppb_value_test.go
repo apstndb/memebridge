@@ -14,6 +14,7 @@ import (
 	"github.com/apstndb/spantype/typector"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/apstndb/memebridge"
@@ -58,6 +59,10 @@ func TestParseExpr(t *testing.T) {
 		{`[NULL, NULL]`, must(gcvctor.ArrayValueOf(typector.Int64(), gcvctor.NullOf(typector.Int64()), gcvctor.NullOf(typector.Int64())))},
 		{`[CAST(NULL AS STRING)]`, must(gcvctor.ArrayValueOf(typector.String(), gcvctor.NullOf(typector.String())))},
 		{`["foo", NULL]`, must(gcvctor.ArrayValueOf(typector.String(), gcvctor.StringValue("foo"), gcvctor.NullOf(typector.String())))},
+		{`[DATE "1970-01-01", "1970-01-02"]`, must(gcvctor.ArrayValueOf(typector.Date(), gcvctor.DateValue(civil.Date{Year: 1970, Month: time.January, Day: 1}), gcvctor.DateValue(civil.Date{Year: 1970, Month: time.January, Day: 2})))},
+		{`[TIMESTAMP "1970-01-01T00:00:00Z", "2020-06-02T00:00:00Z"]`, must(gcvctor.ArrayValueOf(typector.Timestamp(), gcvctor.TimestampValue(time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)), gcvctor.TimestampValue(time.Date(2020, time.June, 2, 0, 0, 0, 0, time.UTC))))},
+		{`[CAST("94a01a73-d90a-432d-a03f-5db58ea8058f" AS UUID), "94a01a73-d90a-432d-a03f-5db58ea8058f"]`, must(gcvctor.ArrayValueOf(typector.UUID(), gcvctor.StringBasedValueFromCode(sppb.TypeCode_UUID, "94a01a73-d90a-432d-a03f-5db58ea8058f"), gcvctor.StringBasedValueFromCode(sppb.TypeCode_UUID, "94a01a73-d90a-432d-a03f-5db58ea8058f")))},
+		{`[CAST("P1Y" AS INTERVAL), "P2Y"]`, must(gcvctor.ArrayValueOf(typector.Interval(), gcvctor.StringBasedValueFromCode(sppb.TypeCode_INTERVAL, "P1Y"), gcvctor.StringBasedValueFromCode(sppb.TypeCode_INTERVAL, "P2Y")))},
 		{`[1, 2.5]`, must(gcvctor.ArrayValueOf(typector.Float64(), gcvctor.Float64Value(1), gcvctor.Float64Value(2.5)))},
 		{
 			`[1, NUMERIC "2.5"]`,
@@ -79,6 +84,11 @@ func TestParseExpr(t *testing.T) {
 		},
 		{`ARRAY<FLOAT64>[1, NUMERIC "2.5"]`, must(gcvctor.ArrayValueOf(typector.Float64(), gcvctor.Float64Value(1), gcvctor.Float64Value(2.5)))},
 		{`ARRAY<FLOAT32>[1, 2.5]`, must(gcvctor.ArrayValueOf(typector.Float32(), gcvctor.Float32Value(1), gcvctor.Float32Value(2.5)))},
+		{`[1, "2"]`, must(gcvctor.ArrayValueOf(typector.Int64(), gcvctor.Int64Value(1), gcvctor.Int64Value(2)))},
+		{`["2020-01-01", DATE "2020-01-02"]`, must(gcvctor.ArrayValueOf(typector.Date(), gcvctor.DateValue(civil.Date{Year: 2020, Month: time.January, Day: 1}), gcvctor.DateValue(civil.Date{Year: 2020, Month: time.January, Day: 2})))},
+		{`["2020-01-01T00:00:00Z", TIMESTAMP "2020-01-02T00:00:00Z"]`, must(gcvctor.ArrayValueOf(typector.Timestamp(), gcvctor.TimestampValue(time.Date(2020, time.January, 1, 0, 0, 0, 0, time.UTC)), gcvctor.TimestampValue(time.Date(2020, time.January, 2, 0, 0, 0, 0, time.UTC))))},
+		{`["94a01a73-d90a-432d-a03f-5db58ea8058f", CAST("94a01a73-d90a-432d-a03f-5db58ea8058f" AS UUID)]`, must(gcvctor.ArrayValueOf(typector.UUID(), gcvctor.UUIDValue(must(uuid.Parse("94a01a73-d90a-432d-a03f-5db58ea8058f"))), gcvctor.UUIDValue(must(uuid.Parse("94a01a73-d90a-432d-a03f-5db58ea8058f")))))},
+		{`["P1Y", CAST("P2Y" AS INTERVAL)]`, must(gcvctor.ArrayValueOf(typector.Interval(), gcvctor.StringBasedValueFromCode(sppb.TypeCode_INTERVAL, "P1Y"), gcvctor.StringBasedValueFromCode(sppb.TypeCode_INTERVAL, "P2Y")))},
 		{
 			`(1, "foo", 3.14)`,
 			must(gcvctor.StructValueOf(
