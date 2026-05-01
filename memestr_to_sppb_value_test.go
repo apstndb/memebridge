@@ -323,6 +323,8 @@ func TestParseExpr(t *testing.T) {
 		{`SAFE_CAST(" 94a01a73-d90a-432d-a03f-5db58ea8058f " AS UUID)`, gcvctor.NullOf(typector.UUID())},
 		{`SAFE_CAST(" P1Y " AS INTERVAL)`, gcvctor.NullOf(typector.Interval())},
 		{`SAFE_CAST("not-an-interval" AS INTERVAL)`, gcvctor.NullOf(typector.Interval())},
+		{`SAFE_CAST(["not-a-date"] AS ARRAY<DATE>)`, gcvctor.NullOf(typector.ElemTypeToArrayType(typector.Date()))},
+		{`SAFE_CAST(STRUCT("not-a-date" AS foo) AS STRUCT<foo DATE>)`, gcvctor.NullOf(typector.NameTypeToStructType("foo", typector.Date()))},
 
 		{"PENDING_COMMIT_TIMESTAMP()", gcvctor.StringBasedValueFromCode(sppb.TypeCode_TIMESTAMP, "spanner.commit_timestamp()")},
 
