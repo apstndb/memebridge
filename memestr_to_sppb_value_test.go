@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"testing"
 	"time"
+	_ "time/tzdata" // ensure IANA tzdata is available for tests on minimal runtimes
 
 	"cloud.google.com/go/civil"
 	"cloud.google.com/go/spanner"
@@ -225,7 +226,9 @@ func TestParseExpr(t *testing.T) {
 		{`CAST("2020-06-02" AS TIMESTAMP)`, gcvctor.TimestampValue(time.Date(2020, time.June, 2, 7, 0, 0, 0, time.UTC))},
 		{`CAST("2020-06-02 00:00:00" AS TIMESTAMP)`, gcvctor.TimestampValue(time.Date(2020, time.June, 2, 7, 0, 0, 0, time.UTC))},
 		{`CAST("2020-06-02T00:00:00" AS TIMESTAMP)`, gcvctor.TimestampValue(time.Date(2020, time.June, 2, 7, 0, 0, 0, time.UTC))},
+		{`CAST("2020-06-02T00:00:00.123" AS TIMESTAMP)`, gcvctor.TimestampValue(time.Date(2020, time.June, 2, 7, 0, 0, 123000000, time.UTC))},
 		{`CAST("2020-06-02 00:00:00.123456789" AS TIMESTAMP)`, gcvctor.TimestampValue(time.Date(2020, time.June, 2, 7, 0, 0, 123456789, time.UTC))},
+		{`CAST("2020-06-02T00:00:00+05:30" AS TIMESTAMP)`, gcvctor.TimestampValue(time.Date(2020, time.June, 1, 18, 30, 0, 0, time.UTC))},
 		{`CAST("2020-06-02T00:00:00-07" AS TIMESTAMP)`, gcvctor.TimestampValue(time.Date(2020, time.June, 2, 7, 0, 0, 0, time.UTC))},
 		{`CAST("2020-06-02 00:00:00-07" AS TIMESTAMP)`, gcvctor.TimestampValue(time.Date(2020, time.June, 2, 7, 0, 0, 0, time.UTC))},
 		{`CAST("2020-06-02 00:00:00-7:00" AS TIMESTAMP)`, gcvctor.TimestampValue(time.Date(2020, time.June, 2, 7, 0, 0, 0, time.UTC))},
@@ -233,6 +236,7 @@ func TestParseExpr(t *testing.T) {
 		{`CAST("2014-09-27 12:30:00.45z" AS TIMESTAMP)`, gcvctor.TimestampValue(time.Date(2014, time.September, 27, 12, 30, 0, 450000000, time.UTC))},
 		{`CAST("2020-06-02 00:00:00 UTC" AS TIMESTAMP)`, gcvctor.TimestampValue(time.Date(2020, time.June, 2, 0, 0, 0, 0, time.UTC))},
 		{`CAST("2008-12-25 15:30:00 America/Los_Angeles" AS TIMESTAMP)`, gcvctor.TimestampValue(time.Date(2008, time.December, 25, 23, 30, 0, 0, time.UTC))},
+		{`CAST("2020-06-02 00:00:00.123 America/Los_Angeles" AS TIMESTAMP)`, gcvctor.TimestampValue(time.Date(2020, time.June, 2, 7, 0, 0, 123000000, time.UTC))},
 		{`CAST("2020-06-02 00:00:00 Asia/Tokyo" AS TIMESTAMP)`, gcvctor.TimestampValue(time.Date(2020, time.June, 1, 15, 0, 0, 0, time.UTC))},
 		{`CAST("2020-06-02 00:00:00 Europe/Vaduz" AS TIMESTAMP)`, gcvctor.TimestampValue(time.Date(2020, time.June, 1, 22, 0, 0, 0, time.UTC))},
 		{`CAST(TIMESTAMP "1970-01-01T00:00:00Z" AS STRING)`, gcvctor.StringValue("1969-12-31 16:00:00-08")},
@@ -278,8 +282,10 @@ func TestParseExpr(t *testing.T) {
 		{`SAFE_CAST("not-a-timestamp" AS TIMESTAMP)`, gcvctor.NullOf(typector.Timestamp())},
 		{`SAFE_CAST("2020-06-02 00:00:00 Etc/Not_A_Zone" AS TIMESTAMP)`, gcvctor.NullOf(typector.Timestamp())},
 		{`SAFE_CAST("2020-06-02 00:00:00 PST" AS TIMESTAMP)`, gcvctor.NullOf(typector.Timestamp())},
+		{`SAFE_CAST("2020-06-02 00:00:00+5:3" AS TIMESTAMP)`, gcvctor.NullOf(typector.Timestamp())},
 		{`SAFE_CAST("2020-06-02 01:02-7" AS TIMESTAMP)`, gcvctor.NullOf(typector.Timestamp())},
 		{`SAFE_CAST("2020-06-02 12:00:00 -7" AS TIMESTAMP)`, gcvctor.NullOf(typector.Timestamp())},
+		{`SAFE_CAST(PENDING_COMMIT_TIMESTAMP() AS DATE)`, gcvctor.NullOf(typector.Date())},
 		{`SAFE_CAST("not-a-uuid" AS UUID)`, gcvctor.NullOf(typector.UUID())},
 		{`SAFE_CAST("not-an-interval" AS INTERVAL)`, gcvctor.NullOf(typector.Interval())},
 
