@@ -549,6 +549,9 @@ func castGCVToStruct(src spanner.GenericColumnValue, destType *sppb.Type, exprSQ
 		return zeroGCV, fmt.Errorf("expected STRUCT wire value, got %T%s", src.Value.GetKind(), exprContextSuffix(exprSQL))
 	}
 	values := listValue.ListValue.Values
+	if len(values) != len(srcFields) {
+		return zeroGCV, fmt.Errorf("STRUCT wire value has %d fields, but type has %d fields%s", len(values), len(srcFields), exprContextSuffix(exprSQL))
+	}
 	coerced := make([]*structpb.Value, len(values))
 	for i, v := range values {
 		elemGCV := spanner.GenericColumnValue{Type: srcFields[i].Type, Value: v}
