@@ -512,7 +512,9 @@ func castGCVToArray(src spanner.GenericColumnValue, destType *sppb.Type, exprSQL
 	coerced := make([]*structpb.Value, len(values))
 	for i, v := range values {
 		elemGCV := spanner.GenericColumnValue{Type: srcElemType, Value: v}
-		casted, err := castGCV(elemGCV, destElemType, exprSQL)
+		// Pass empty exprSQL so the recursive cast doesn't duplicate expression
+		// context; this wrapper owns the context via exprContextSuffix.
+		casted, err := castGCV(elemGCV, destElemType, "")
 		if err != nil {
 			return zeroGCV, fmt.Errorf("cannot cast array element %d from %v to %v%s: %w", i, srcElemType.GetCode(), destElemType.GetCode(), exprContextSuffix(exprSQL), err)
 		}
@@ -540,6 +542,8 @@ func castGCVToStruct(src spanner.GenericColumnValue, destType *sppb.Type, exprSQ
 	if len(srcFields) != len(destFields) {
 		return zeroGCV, fmt.Errorf("cannot cast STRUCT with %d fields to STRUCT with %d fields%s", len(srcFields), len(destFields), exprContextSuffix(exprSQL))
 	}
+	// Cloud Spanner ignores field names during STRUCT CAST and only requires
+	// the number of fields to match, so name parity is intentionally not enforced.
 	listValue, ok := src.Value.GetKind().(*structpb.Value_ListValue)
 	if !ok {
 		return zeroGCV, fmt.Errorf("expected STRUCT wire value, got %T%s", src.Value.GetKind(), exprContextSuffix(exprSQL))
@@ -551,7 +555,9 @@ func castGCVToStruct(src spanner.GenericColumnValue, destType *sppb.Type, exprSQ
 	coerced := make([]*structpb.Value, len(values))
 	for i, v := range values {
 		elemGCV := spanner.GenericColumnValue{Type: srcFields[i].Type, Value: v}
-		casted, err := castGCV(elemGCV, destFields[i].Type, exprSQL)
+		// Pass empty exprSQL so the recursive cast doesn't duplicate expression
+		// context; this wrapper owns the context via exprContextSuffix.
+		casted, err := castGCV(elemGCV, destFields[i].Type, "")
 		if err != nil {
 			return zeroGCV, fmt.Errorf("cannot cast struct field %d from %v to %v%s: %w", i, srcFields[i].Type.GetCode(), destFields[i].Type.GetCode(), exprContextSuffix(exprSQL), err)
 		}
