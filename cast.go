@@ -40,19 +40,14 @@ var (
 	spannerTimestampZonedLayouts = [...]string{
 		time.RFC3339Nano,
 		"2006-01-02T15:04:05.999999999Z07",
-		"2006-01-02T15:04:05Z07",
 		"2006-01-02 15:04:05.999999999Z07:00",
-		"2006-01-02 15:04:05Z07:00",
 		"2006-01-02 15:04:05.999999999Z07",
-		"2006-01-02 15:04:05Z07",
 	}
 
 	spannerTimestampLocalLayouts = [...]string{
 		"2006-01-02",
 		"2006-01-02T15:04:05.999999999",
-		"2006-01-02T15:04:05",
 		"2006-01-02 15:04:05.999999999",
-		"2006-01-02 15:04:05",
 	}
 
 	spannerDefaultLocation = sync.OnceValues(func() (*time.Location, error) {
