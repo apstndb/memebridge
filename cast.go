@@ -514,6 +514,9 @@ func castGCVToArray(src spanner.GenericColumnValue, destType *sppb.Type, exprSQL
 	if !ok {
 		return zeroGCV, fmt.Errorf("expected ARRAY wire value, got %T%s", src.Value.GetKind(), exprContextSuffix(exprSQL))
 	}
+	if listValue.ListValue == nil {
+		return zeroGCV, fmt.Errorf("malformed ARRAY wire value: missing ListValue detail%s", exprContextSuffix(exprSQL))
+	}
 	values := listValue.ListValue.Values
 	coerced := make([]*structpb.Value, len(values))
 	for i, v := range values {
@@ -559,6 +562,9 @@ func castGCVToStruct(src spanner.GenericColumnValue, destType *sppb.Type, exprSQ
 	listValue, ok := src.Value.GetKind().(*structpb.Value_ListValue)
 	if !ok {
 		return zeroGCV, fmt.Errorf("expected STRUCT wire value, got %T%s", src.Value.GetKind(), exprContextSuffix(exprSQL))
+	}
+	if listValue.ListValue == nil {
+		return zeroGCV, fmt.Errorf("malformed STRUCT wire value: missing ListValue detail%s", exprContextSuffix(exprSQL))
 	}
 	values := listValue.ListValue.Values
 	if len(values) != len(srcFields) {
