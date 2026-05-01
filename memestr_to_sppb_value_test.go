@@ -79,6 +79,9 @@ func TestParseExpr(t *testing.T) {
 		},
 		{`ARRAY<FLOAT64>[1, NUMERIC "2.5"]`, must(gcvctor.ArrayValueOf(typector.Float64(), gcvctor.Float64Value(1), gcvctor.Float64Value(2.5)))},
 		{`ARRAY<FLOAT32>[1, 2.5]`, must(gcvctor.ArrayValueOf(typector.Float32(), gcvctor.Float32Value(1), gcvctor.Float32Value(2.5)))},
+		{`[1, "2"]`, must(gcvctor.ArrayValueOf(typector.Int64(), gcvctor.Int64Value(1), gcvctor.Int64Value(2)))},
+		{`["2020-01-01", DATE "2020-01-02"]`, must(gcvctor.ArrayValueOf(typector.Date(), gcvctor.DateValue(civil.Date{Year: 2020, Month: time.January, Day: 1}), gcvctor.DateValue(civil.Date{Year: 2020, Month: time.January, Day: 2})))},
+		{`["foo", NULL]`, must(gcvctor.ArrayValueOf(typector.String(), gcvctor.StringValue("foo"), gcvctor.NullOf(typector.String())))},
 		{
 			`(1, "foo", 3.14)`,
 			must(gcvctor.StructValueOf(
