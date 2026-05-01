@@ -185,6 +185,63 @@ func TestParseExpr(t *testing.T) {
 				},
 			)),
 		},
+		{
+			`STRUCT<s STRUCT<n NUMERIC>>(STRUCT(1))`,
+			must(gcvctor.StructValueOf(
+				[]string{"s"},
+				[]spanner.GenericColumnValue{
+					must(gcvctor.StructValueOf(
+						[]string{"n"},
+						[]spanner.GenericColumnValue{gcvctor.NumericValue(big.NewRat(1, 1))},
+					)),
+				},
+			)),
+		},
+		{
+			`STRUCT<s STRUCT<d DATE>>(STRUCT("1970-01-01"))`,
+			must(gcvctor.StructValueOf(
+				[]string{"s"},
+				[]spanner.GenericColumnValue{
+					must(gcvctor.StructValueOf(
+						[]string{"d"},
+						[]spanner.GenericColumnValue{gcvctor.DateValue(civil.Date{Year: 1970, Month: time.January, Day: 1})},
+					)),
+				},
+			)),
+		},
+		{
+			`STRUCT<a ARRAY<STRUCT<n NUMERIC>>>([STRUCT(1), STRUCT(NULL)])`,
+			must(gcvctor.StructValueOf(
+				[]string{"a"},
+				[]spanner.GenericColumnValue{
+					must(gcvctor.ArrayValueOf(
+						typector.NameTypeToStructType("n", typector.Numeric()),
+						must(gcvctor.StructValueOf(
+							[]string{"n"},
+							[]spanner.GenericColumnValue{gcvctor.NumericValue(big.NewRat(1, 1))},
+						)),
+						must(gcvctor.StructValueOf(
+							[]string{"n"},
+							[]spanner.GenericColumnValue{gcvctor.NullOf(typector.Numeric())},
+						)),
+					)),
+				},
+			)),
+		},
+		{
+			`ARRAY<STRUCT<n NUMERIC>>[STRUCT(1), STRUCT(NULL)]`,
+			must(gcvctor.ArrayValueOf(
+				typector.NameTypeToStructType("n", typector.Numeric()),
+				must(gcvctor.StructValueOf(
+					[]string{"n"},
+					[]spanner.GenericColumnValue{gcvctor.NumericValue(big.NewRat(1, 1))},
+				)),
+				must(gcvctor.StructValueOf(
+					[]string{"n"},
+					[]spanner.GenericColumnValue{gcvctor.NullOf(typector.Numeric())},
+				)),
+			)),
+		},
 		{"(1)", gcvctor.Int64Value(1)},
 		{`CAST(TRUE AS INT64)`, gcvctor.Int64Value(1)},
 		{`CAST(FALSE AS STRING)`, gcvctor.StringValue("false")},
@@ -490,6 +547,8 @@ func TestParseExpr_InvalidCastReturnsError(t *testing.T) {
 		`STRUCT<f32 FLOAT32>(CAST(NULL AS INT64))`,
 		`STRUCT<a ARRAY<FLOAT32>>([CAST(NULL AS INT64)])`,
 		`STRUCT<a ARRAY<FLOAT32>>([CAST(1 AS FLOAT64)])`,
+		`STRUCT<s STRUCT<d DATE>>(STRUCT("not-a-date"))`,
+		`STRUCT<a ARRAY<STRUCT<d DATE>>>([STRUCT("not-a-date")])`,
 		`CAST([1] AS ARRAY<BYTES>)`,
 		`CAST(STRUCT(1 AS foo, 2 AS bar) AS STRUCT<foo INT64>)`,
 	}
