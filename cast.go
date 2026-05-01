@@ -537,8 +537,16 @@ func castGCVToStruct(src spanner.GenericColumnValue, destType *sppb.Type, exprSQ
 	if src.Type.GetCode() != sppb.TypeCode_STRUCT {
 		return zeroGCV, unsupportedCastError(src.Type.GetCode(), sppb.TypeCode_STRUCT, exprSQL)
 	}
-	srcFields := src.Type.GetStructType().GetFields()
-	destFields := destType.GetStructType().GetFields()
+	srcStructType := src.Type.GetStructType()
+	if srcStructType == nil {
+		return zeroGCV, fmt.Errorf("malformed STRUCT source type%s", exprContextSuffix(exprSQL))
+	}
+	srcFields := srcStructType.GetFields()
+	destStructType := destType.GetStructType()
+	if destStructType == nil {
+		return zeroGCV, fmt.Errorf("malformed STRUCT destination type%s", exprContextSuffix(exprSQL))
+	}
+	destFields := destStructType.GetFields()
 	if len(srcFields) != len(destFields) {
 		return zeroGCV, fmt.Errorf("cannot cast STRUCT with %d fields to STRUCT with %d fields%s", len(srcFields), len(destFields), exprContextSuffix(exprSQL))
 	}
