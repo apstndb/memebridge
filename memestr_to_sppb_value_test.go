@@ -289,6 +289,7 @@ func TestParseExpr(t *testing.T) {
 		{`SAFE_CAST("2020-06-02 12:00:00 -7" AS TIMESTAMP)`, gcvctor.NullOf(typector.Timestamp())},
 		{`SAFE_CAST(PENDING_COMMIT_TIMESTAMP() AS DATE)`, gcvctor.NullOf(typector.Date())},
 		{`SAFE_CAST("not-a-uuid" AS UUID)`, gcvctor.NullOf(typector.UUID())},
+		{`SAFE_CAST(b"foo" AS UUID)`, gcvctor.NullOf(typector.UUID())},
 		{`SAFE_CAST("not-an-interval" AS INTERVAL)`, gcvctor.NullOf(typector.Interval())},
 
 		{"PENDING_COMMIT_TIMESTAMP()", gcvctor.StringBasedValueFromCode(sppb.TypeCode_TIMESTAMP, "spanner.commit_timestamp()")},
@@ -402,6 +403,7 @@ func TestParseExpr_InvalidCastReturnsError(t *testing.T) {
 		`CAST(1e50 AS NUMERIC)`,
 		`CAST(NUMERIC "9223372036854775807.5" AS INT64)`,
 		`CAST("not-a-uuid" AS UUID)`,
+		`CAST(b"foo" AS UUID)`,
 		`CAST("not-an-interval" AS INTERVAL)`,
 		`CAST(CAST("nan" AS FLOAT64) AS INT64)`,
 		`CAST(b"\xff" AS STRING)`,
