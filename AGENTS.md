@@ -45,4 +45,4 @@ Recent history uses short, imperative subjects such as `Support IntervalLiteralR
 
 When changing cast or coercion semantics, consult Cloud Spanner conversion rules and the upstream GoogleSQL cast tables (`googlesql/public/cast.cc` and `googlesql/public/cast.h`), then record which reference justified which behavior change in the PR description or review notes.
 
-For bot review loops in this repository, start with `gh copilot-review request <pr> --wait --timeout 900`. If that wait times out, continue with `gh copilot-review check <pr>` instead of hand-rolled polling. If GitHub API or rate-limit issues block the review loop, stop and ask the user rather than improvising around the failure.
+For bot review loops in this repository, start with `gh copilot-review request <pr> --wait --timeout 900 --interval 60` to reduce GitHub API churn. If that wait times out, continue with `gh copilot-review check <pr> --interval 60` instead of hand-rolled polling. If GitHub API or rate-limit issues block the review loop, stop and ask the user rather than improvising around the failure.
