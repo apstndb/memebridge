@@ -123,8 +123,14 @@ func memefishExprToGCVWithExpectedType(expectedType *sppb.Type, expr ast.Expr) (
 			return arrayLiteralToGCVStrict(array, expectedType.GetArrayElementType())
 		}
 	case sppb.TypeCode_STRUCT:
-		switch unwrapped.(type) {
-		case *ast.TypelessStructLiteral, *ast.TupleStructLiteral, *ast.TypedStructLiteral:
+		switch e := unwrapped.(type) {
+		case *ast.TypedStructLiteral:
+			gcv, err := typedStructLiteralToGCV(e)
+			if err != nil {
+				return zeroGCV, err
+			}
+			return coerceStructExprToExpectedType(expectedType, gcv, expr)
+		case *ast.TypelessStructLiteral, *ast.TupleStructLiteral:
 			return structLiteralToGCVWithExpectedType(expectedType, unwrapped)
 		}
 	}
@@ -134,6 +140,25 @@ func memefishExprToGCVWithExpectedType(expectedType *sppb.Type, expr ast.Expr) (
 		return zeroGCV, err
 	}
 	return coerceToExpectedType(expectedType, gcv, expr)
+}
+
+func coerceStructExprToExpectedType(
+	expectedType *sppb.Type,
+	gcv spanner.GenericColumnValue,
+	expr ast.Expr,
+) (spanner.GenericColumnValue, error) {
+	if proto.Equal(gcv.Type, expectedType) {
+		return spanner.GenericColumnValue{Type: expectedType, Value: gcv.Value}, nil
+	}
+	if gcv.Type.GetCode() != sppb.TypeCode_STRUCT {
+		return zeroGCV, fmt.Errorf(
+			"cannot coerce expression from %v to %v: %s",
+			gcv.Type.GetCode(),
+			expectedType.GetCode(),
+			expr.SQL(),
+		)
+	}
+	return castGCV(gcv, expectedType, expr.SQL())
 }
 
 func structLiteralToGCVWithExpectedType(expectedType *sppb.Type, expr ast.Expr) (spanner.GenericColumnValue, error) {
@@ -313,10 +338,10 @@ func coerceStringLiteralToExpectedType(
 	case sppb.TypeCode_UUID:
 		u, err := uuid.Parse(lit.Value)
 		if err != nil {
-			return zeroGCV, fmt.Errorf("invalid UUID literal for typed struct field %q: %w", lit.Value, err)
+			return zeroGCV, fmt.Errorf("invalid UUID literal for expected type %q: %w", lit.Value, err)
 		}
 		if !strings.EqualFold(u.String(), lit.Value) {
-			return zeroGCV, fmt.Errorf("invalid UUID literal for typed struct field: %q", lit.Value)
+			return zeroGCV, fmt.Errorf("invalid UUID literal for expected type: %q", lit.Value)
 		}
 		return gcvctor.UUIDValue(u), nil
 	case sppb.TypeCode_INTERVAL:
