@@ -501,7 +501,7 @@ func castGCVToArray(src spanner.GenericColumnValue, destType *sppb.Type, exprSQL
 	// https://github.com/google/googlesql/blob/36dd14aa0657ea299725504bc0f938732f58f380/googlesql/public/cast.h#L45-L66
 	// https://github.com/google/googlesql/blob/36dd14aa0657ea299725504bc0f938732f58f380/googlesql/public/cast.cc#L282-L289
 	if !proto.Equal(src.Type, destType) {
-		return zeroGCV, unsupportedCastError(src.Type.GetCode(), sppb.TypeCode_ARRAY, exprSQL)
+		return zeroGCV, unsupportedArrayCastError(src.Type, destType, exprSQL)
 	}
 	return src, nil
 }
@@ -824,6 +824,8 @@ func parseSpannerFloat(v string, bitSize int) (float64, error) {
 }
 
 func parseNumericLiteralForCast(v, exprSQL string) (*big.Rat, error) {
+	const maxNumericScientificExponent = 1000
+
 	v = strings.TrimSpace(v)
 	if strings.Contains(v, "/") {
 		return nil, fmt.Errorf("invalid NUMERIC literal for cast of %s to NUMERIC: %q", exprSQL, v)
@@ -851,7 +853,7 @@ func parseNumericLiteralForCast(v, exprSQL string) (*big.Rat, error) {
 			return nil, fmt.Errorf("invalid NUMERIC literal for cast of %s to NUMERIC: %q", exprSQL, v)
 		}
 		parsedExp, err := strconv.Atoi(unsigned[idx+1:])
-		if err != nil {
+		if err != nil || parsedExp > maxNumericScientificExponent || parsedExp < -maxNumericScientificExponent {
 			return nil, fmt.Errorf("invalid NUMERIC literal for cast of %s to NUMERIC: %q", exprSQL, v)
 		}
 		exp = parsedExp
@@ -990,6 +992,24 @@ func formatSpannerFloat(v float64, bitSize int) string {
 
 func unsupportedCastError(srcCode, destCode sppb.TypeCode, exprSQL string) error {
 	err := fmt.Errorf("%w from %v to %v", errUnsupportedCast, srcCode, destCode)
+	if exprSQL != "" {
+		return fmt.Errorf("%w: %s", err, exprSQL)
+	}
+	return err
+}
+
+func unsupportedArrayCastError(srcType, destType *sppb.Type, exprSQL string) error {
+	srcElemType := srcType.GetArrayElementType()
+	destElemType := destType.GetArrayElementType()
+	srcElemCode := sppb.TypeCode_TYPE_CODE_UNSPECIFIED
+	if srcElemType != nil {
+		srcElemCode = srcElemType.GetCode()
+	}
+	destElemCode := sppb.TypeCode_TYPE_CODE_UNSPECIFIED
+	if destElemType != nil {
+		destElemCode = destElemType.GetCode()
+	}
+	err := fmt.Errorf("%w from ARRAY<%v> to ARRAY<%v>", errUnsupportedCast, srcElemCode, destElemCode)
 	if exprSQL != "" {
 		return fmt.Errorf("%w: %s", err, exprSQL)
 	}
