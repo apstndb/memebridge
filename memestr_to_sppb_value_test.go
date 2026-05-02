@@ -62,7 +62,6 @@ func TestParseExpr(t *testing.T) {
 		{`[DATE "1970-01-01", "1970-01-02"]`, must(gcvctor.ArrayValueOf(typector.Date(), gcvctor.DateValue(civil.Date{Year: 1970, Month: time.January, Day: 1}), gcvctor.DateValue(civil.Date{Year: 1970, Month: time.January, Day: 2})))},
 		{`[TIMESTAMP "1970-01-01T00:00:00Z", "2020-06-02T00:00:00Z"]`, must(gcvctor.ArrayValueOf(typector.Timestamp(), gcvctor.TimestampValue(time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)), gcvctor.TimestampValue(time.Date(2020, time.June, 2, 0, 0, 0, 0, time.UTC))))},
 		{`[CAST("94a01a73-d90a-432d-a03f-5db58ea8058f" AS UUID), "94a01a73-d90a-432d-a03f-5db58ea8058f"]`, must(gcvctor.ArrayValueOf(typector.UUID(), gcvctor.StringBasedValueFromCode(sppb.TypeCode_UUID, "94a01a73-d90a-432d-a03f-5db58ea8058f"), gcvctor.StringBasedValueFromCode(sppb.TypeCode_UUID, "94a01a73-d90a-432d-a03f-5db58ea8058f")))},
-		{`[CAST("P1Y" AS INTERVAL), "P2Y"]`, must(gcvctor.ArrayValueOf(typector.Interval(), gcvctor.StringBasedValueFromCode(sppb.TypeCode_INTERVAL, "P1Y"), gcvctor.StringBasedValueFromCode(sppb.TypeCode_INTERVAL, "P2Y")))},
 		{`[1, 2.5]`, must(gcvctor.ArrayValueOf(typector.Float64(), gcvctor.Float64Value(1), gcvctor.Float64Value(2.5)))},
 		{
 			`[1, NUMERIC "2.5"]`,
@@ -84,11 +83,9 @@ func TestParseExpr(t *testing.T) {
 		},
 		{`ARRAY<FLOAT64>[1, NUMERIC "2.5"]`, must(gcvctor.ArrayValueOf(typector.Float64(), gcvctor.Float64Value(1), gcvctor.Float64Value(2.5)))},
 		{`ARRAY<FLOAT32>[1, 2.5]`, must(gcvctor.ArrayValueOf(typector.Float32(), gcvctor.Float32Value(1), gcvctor.Float32Value(2.5)))},
-		{`[1, "2"]`, must(gcvctor.ArrayValueOf(typector.Int64(), gcvctor.Int64Value(1), gcvctor.Int64Value(2)))},
 		{`["2020-01-01", DATE "2020-01-02"]`, must(gcvctor.ArrayValueOf(typector.Date(), gcvctor.DateValue(civil.Date{Year: 2020, Month: time.January, Day: 1}), gcvctor.DateValue(civil.Date{Year: 2020, Month: time.January, Day: 2})))},
 		{`["2020-01-01T00:00:00Z", TIMESTAMP "2020-01-02T00:00:00Z"]`, must(gcvctor.ArrayValueOf(typector.Timestamp(), gcvctor.TimestampValue(time.Date(2020, time.January, 1, 0, 0, 0, 0, time.UTC)), gcvctor.TimestampValue(time.Date(2020, time.January, 2, 0, 0, 0, 0, time.UTC))))},
 		{`["94a01a73-d90a-432d-a03f-5db58ea8058f", CAST("94a01a73-d90a-432d-a03f-5db58ea8058f" AS UUID)]`, must(gcvctor.ArrayValueOf(typector.UUID(), gcvctor.UUIDValue(must(uuid.Parse("94a01a73-d90a-432d-a03f-5db58ea8058f"))), gcvctor.UUIDValue(must(uuid.Parse("94a01a73-d90a-432d-a03f-5db58ea8058f")))))},
-		{`["P1Y", CAST("P2Y" AS INTERVAL)]`, must(gcvctor.ArrayValueOf(typector.Interval(), gcvctor.StringBasedValueFromCode(sppb.TypeCode_INTERVAL, "P1Y"), gcvctor.StringBasedValueFromCode(sppb.TypeCode_INTERVAL, "P2Y")))},
 		{
 			`(1, "foo", 3.14)`,
 			must(gcvctor.StructValueOf(
@@ -122,7 +119,7 @@ func TestParseExpr(t *testing.T) {
 			)),
 		},
 		{
-			`STRUCT<d DATE, ts TIMESTAMP, u UUID, i INTERVAL>("1970-01-01", "1970-01-01T00:00:00Z", "94a01a73-d90a-432d-a03f-5db58ea8058f", "P1Y")`,
+			`STRUCT<d DATE, ts TIMESTAMP, u UUID, i INTERVAL>("1970-01-01", "1970-01-01T00:00:00Z", "94a01a73-d90a-432d-a03f-5db58ea8058f", CAST("P1Y" AS INTERVAL))`,
 			must(gcvctor.StructValueOf(
 				[]string{"d", "ts", "u", "i"},
 				[]spanner.GenericColumnValue{
@@ -148,7 +145,7 @@ func TestParseExpr(t *testing.T) {
 			)),
 		},
 		{
-			`STRUCT<a ARRAY<NUMERIC>>([1, NULL])`,
+			`STRUCT<a ARRAY<NUMERIC>>(ARRAY<NUMERIC>[1, NULL])`,
 			must(gcvctor.StructValueOf(
 				[]string{"a"},
 				[]spanner.GenericColumnValue{
@@ -161,7 +158,7 @@ func TestParseExpr(t *testing.T) {
 			)),
 		},
 		{
-			`STRUCT<a ARRAY<FLOAT64>>([1, NUMERIC "2.5"])`,
+			`STRUCT<a ARRAY<FLOAT64>>(ARRAY<FLOAT64>[1, NUMERIC "2.5"])`,
 			must(gcvctor.StructValueOf(
 				[]string{"a"},
 				[]spanner.GenericColumnValue{
@@ -174,7 +171,7 @@ func TestParseExpr(t *testing.T) {
 			)),
 		},
 		{
-			`STRUCT<a ARRAY<DATE>>(["1970-01-01"])`,
+			`STRUCT<a ARRAY<DATE>>(ARRAY<DATE>["1970-01-01"])`,
 			must(gcvctor.StructValueOf(
 				[]string{"a"},
 				[]spanner.GenericColumnValue{
@@ -222,7 +219,7 @@ func TestParseExpr(t *testing.T) {
 			)),
 		},
 		{
-			`STRUCT<a ARRAY<STRUCT<n NUMERIC>>>([STRUCT(1), STRUCT(NULL)])`,
+			`STRUCT<a ARRAY<STRUCT<n NUMERIC>>>(ARRAY<STRUCT<n NUMERIC>>[STRUCT(1), STRUCT(NULL)])`,
 			must(gcvctor.StructValueOf(
 				[]string{"a"},
 				[]spanner.GenericColumnValue{
@@ -333,9 +330,7 @@ func TestParseExpr(t *testing.T) {
 		{`CAST(CAST("00000000-0000-4000-8000-000000000000" AS UUID) AS BYTES)`, gcvctor.BytesValue([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})},
 		{`CAST(CAST("P1Y" AS INTERVAL) AS STRING)`, gcvctor.StringValue("P1Y")},
 		{`CAST([1] AS ARRAY<INT64>)`, must(gcvctor.ArrayValueOf(typector.Int64(), gcvctor.Int64Value(1)))},
-		{`CAST([1] AS ARRAY<FLOAT64>)`, must(gcvctor.ArrayValueOf(typector.Float64(), gcvctor.Float64Value(1.0)))},
-		{`CAST([NUMERIC "1.5"] AS ARRAY<FLOAT64>)`, must(gcvctor.ArrayValueOf(typector.Float64(), gcvctor.Float64Value(1.5)))},
-		{`CAST([1, NULL] AS ARRAY<FLOAT64>)`, must(gcvctor.ArrayValueOf(typector.Float64(), gcvctor.Float64Value(1.0), gcvctor.NullOf(typector.Float64())))},
+		{`CAST("1e2" AS NUMERIC)`, gcvctor.NumericValue(big.NewRat(100, 1))},
 		{
 			`CAST(STRUCT(1 AS foo) AS STRUCT<foo INT64>)`,
 			must(gcvctor.StructValueOf(
@@ -402,7 +397,6 @@ func TestParseExpr(t *testing.T) {
 		{`SAFE_CAST(" 94a01a73-d90a-432d-a03f-5db58ea8058f " AS UUID)`, gcvctor.NullOf(typector.UUID())},
 		{`SAFE_CAST(" P1Y " AS INTERVAL)`, gcvctor.NullOf(typector.Interval())},
 		{`SAFE_CAST("not-an-interval" AS INTERVAL)`, gcvctor.NullOf(typector.Interval())},
-		{`SAFE_CAST(["not-a-date"] AS ARRAY<DATE>)`, gcvctor.NullOf(typector.ElemTypeToArrayType(typector.Date()))},
 		{`SAFE_CAST(STRUCT("not-a-date" AS foo) AS STRUCT<foo DATE>)`, gcvctor.NullOf(typector.NameTypeToStructType("foo", typector.Date()))},
 
 		{"PENDING_COMMIT_TIMESTAMP()", gcvctor.StringBasedValueFromCode(sppb.TypeCode_TIMESTAMP, "spanner.commit_timestamp()")},
@@ -528,7 +522,6 @@ func TestParseExpr_InvalidCastReturnsError(t *testing.T) {
 		`CAST("not-a-number" AS NUMERIC)`,
 		`CAST("1/2" AS NUMERIC)`,
 		`CAST("0x10" AS NUMERIC)`,
-		`CAST("1e2" AS NUMERIC)`,
 		`CAST(1e50 AS FLOAT32)`,
 		`CAST(CAST("NaN" AS FLOAT64) AS NUMERIC)`,
 		`CAST(CAST("Infinity" AS FLOAT64) AS NUMERIC)`,
@@ -547,22 +540,34 @@ func TestParseExpr_InvalidCastReturnsError(t *testing.T) {
 		`SAFE_CAST(TRUE AS BYTES)`,
 		`SAFE_CAST([1] AS INT64)`,
 		`SAFE_CAST([1] AS ARRAY<BYTES>)`,
+		`SAFE_CAST(["not-a-date"] AS ARRAY<DATE>)`,
 		`STRUCT<i INT64>("1")`,
 		`STRUCT<b BYTES>("foo")`,
 		`STRUCT<i INT64>(CAST(NULL AS STRING))`,
 		`STRUCT<d DATE>(" 1970-01-01 ")`,
 		`STRUCT<u UUID>(" 94a01a73-d90a-432d-a03f-5db58ea8058f ")`,
+		`STRUCT<d DATE, ts TIMESTAMP, u UUID, i INTERVAL>("1970-01-01", "1970-01-01T00:00:00Z", "94a01a73-d90a-432d-a03f-5db58ea8058f", "P1Y")`,
+		`[1, "2"]`,
+		`[CAST("P1Y" AS INTERVAL), "P2Y"]`,
+		`["P1Y", CAST("P2Y" AS INTERVAL)]`,
 		`STRUCT<a ARRAY<INT64>>(["1"])`,
 		`STRUCT<a ARRAY<BYTES>>(["foo"])`,
 		`STRUCT<a ARRAY<DATE>>(["not-a-date"])`,
 		`STRUCT<a ARRAY<INT64>>([CAST(NULL AS STRING)])`,
+		`STRUCT<a ARRAY<NUMERIC>>([1, NULL])`,
+		`STRUCT<a ARRAY<FLOAT64>>([1, NUMERIC "2.5"])`,
+		`STRUCT<a ARRAY<DATE>>(["1970-01-01"])`,
 		`STRUCT<f32 FLOAT32>(CAST(NULL AS INT64))`,
 		`STRUCT<a ARRAY<FLOAT32>>([CAST(NULL AS INT64)])`,
 		`STRUCT<a ARRAY<FLOAT32>>([CAST(1 AS FLOAT64)])`,
 		`STRUCT<s STRUCT<d DATE>>(STRUCT("not-a-date"))`,
 		`STRUCT<s STRUCT<d DATE>>(STRUCT<d BYTES>("1970-01-01"))`,
+		`STRUCT<a ARRAY<STRUCT<n NUMERIC>>>([STRUCT(1), STRUCT(NULL)])`,
 		`STRUCT<a ARRAY<STRUCT<d DATE>>>([STRUCT("not-a-date")])`,
 		`CAST([1] AS ARRAY<BYTES>)`,
+		`CAST([1] AS ARRAY<FLOAT64>)`,
+		`CAST([NUMERIC "1.5"] AS ARRAY<FLOAT64>)`,
+		`CAST([1, NULL] AS ARRAY<FLOAT64>)`,
 		`CAST(STRUCT(1 AS foo, 2 AS bar) AS STRUCT<foo INT64>)`,
 	}
 	for _, input := range tests {

@@ -294,19 +294,9 @@ func castGCVToNumeric(src spanner.GenericColumnValue, exprSQL string) (spanner.G
 		if err != nil {
 			return zeroGCV, err
 		}
-		v = strings.TrimSpace(v)
-		if strings.Contains(v, "/") {
-			return zeroGCV, fmt.Errorf("invalid NUMERIC literal for cast of %s to NUMERIC: %q", exprSQL, v)
-		}
-		if strings.Contains(v, "0x") || strings.Contains(v, "0X") {
-			return zeroGCV, fmt.Errorf("invalid NUMERIC literal for cast of %s to NUMERIC: %q", exprSQL, v)
-		}
-		if strings.ContainsAny(v, "eE") {
-			return zeroGCV, fmt.Errorf("invalid NUMERIC literal for cast of %s to NUMERIC: %q", exprSQL, v)
-		}
-		n, ok := new(big.Rat).SetString(v)
-		if !ok {
-			return zeroGCV, fmt.Errorf("invalid NUMERIC literal for cast of %s to NUMERIC: %q", exprSQL, v)
+		n, err := parseNumericLiteralForCast(v, exprSQL)
+		if err != nil {
+			return zeroGCV, err
 		}
 		return gcvctor.NumericValueChecked(n)
 	default:
@@ -502,35 +492,18 @@ func castGCVToArray(src spanner.GenericColumnValue, destType *sppb.Type, exprSQL
 	if src.Type.GetCode() != sppb.TypeCode_ARRAY {
 		return zeroGCV, unsupportedCastError(src.Type.GetCode(), sppb.TypeCode_ARRAY, exprSQL)
 	}
-	srcElemType := src.Type.GetArrayElementType()
-	if srcElemType == nil {
-		return zeroGCV, fmt.Errorf("malformed ARRAY source type: missing element type%s", exprContextSuffix(exprSQL))
+	// Real Cloud Spanner does not support element-wise ARRAY casts such as
+	// CAST([1] AS ARRAY<FLOAT64>) or SAFE_CAST(["x"] AS ARRAY<DATE>). The
+	// GoogleSQL cast map marks ARRAY as IMPLICIT, but only for equivalent
+	// non-simple types; callers must reject non-equivalent ARRAY casts.
+	// See:
+	// https://docs.cloud.google.com/spanner/docs/reference/standard-sql/conversion_rules
+	// https://github.com/google/googlesql/blob/36dd14aa0657ea299725504bc0f938732f58f380/googlesql/public/cast.h#L45-L66
+	// https://github.com/google/googlesql/blob/36dd14aa0657ea299725504bc0f938732f58f380/googlesql/public/cast.cc#L282-L289
+	if !proto.Equal(src.Type, destType) {
+		return zeroGCV, unsupportedCastError(src.Type.GetCode(), sppb.TypeCode_ARRAY, exprSQL)
 	}
-	destElemType := destType.GetArrayElementType()
-	if destElemType == nil {
-		return zeroGCV, fmt.Errorf("malformed ARRAY destination type: missing element type%s", exprContextSuffix(exprSQL))
-	}
-	listValue, ok := src.Value.GetKind().(*structpb.Value_ListValue)
-	if !ok {
-		return zeroGCV, fmt.Errorf("expected ARRAY wire value, got %T%s", src.Value.GetKind(), exprContextSuffix(exprSQL))
-	}
-	if listValue.ListValue == nil {
-		return zeroGCV, fmt.Errorf("malformed ARRAY wire value: missing ListValue detail%s", exprContextSuffix(exprSQL))
-	}
-	values := listValue.ListValue.Values
-	coerced := make([]*structpb.Value, len(values))
-	for i, v := range values {
-		elemGCV := spanner.GenericColumnValue{Type: srcElemType, Value: v}
-		casted, err := castGCV(elemGCV, destElemType, exprSQL)
-		if err != nil {
-			return zeroGCV, fmt.Errorf("cannot cast array element %d from %v to %v: %w", i, srcElemType.GetCode(), destElemType.GetCode(), err)
-		}
-		coerced[i] = gcvToValue(casted)
-	}
-	return spanner.GenericColumnValue{
-		Type:  destType,
-		Value: structpb.NewListValue(&structpb.ListValue{Values: coerced}),
-	}, nil
+	return src, nil
 }
 
 func gcvToValue(gcv spanner.GenericColumnValue) *structpb.Value {
@@ -848,6 +821,76 @@ func parseSpannerFloat(v string, bitSize int) (float64, error) {
 	default:
 		return strconv.ParseFloat(v, bitSize)
 	}
+}
+
+func parseNumericLiteralForCast(v, exprSQL string) (*big.Rat, error) {
+	v = strings.TrimSpace(v)
+	if strings.Contains(v, "/") {
+		return nil, fmt.Errorf("invalid NUMERIC literal for cast of %s to NUMERIC: %q", exprSQL, v)
+	}
+
+	unsigned := v
+	sign := 1
+	if len(unsigned) > 0 {
+		switch unsigned[0] {
+		case '+':
+			unsigned = unsigned[1:]
+		case '-':
+			sign = -1
+			unsigned = unsigned[1:]
+		}
+	}
+	if strings.HasPrefix(unsigned, "0x") || strings.HasPrefix(unsigned, "0X") {
+		return nil, fmt.Errorf("invalid NUMERIC literal for cast of %s to NUMERIC: %q", exprSQL, v)
+	}
+
+	mantissa := unsigned
+	exp := 0
+	if idx := strings.IndexAny(unsigned, "eE"); idx >= 0 {
+		if strings.ContainsAny(unsigned[idx+1:], "eE") {
+			return nil, fmt.Errorf("invalid NUMERIC literal for cast of %s to NUMERIC: %q", exprSQL, v)
+		}
+		parsedExp, err := strconv.Atoi(unsigned[idx+1:])
+		if err != nil {
+			return nil, fmt.Errorf("invalid NUMERIC literal for cast of %s to NUMERIC: %q", exprSQL, v)
+		}
+		exp = parsedExp
+		mantissa = unsigned[:idx]
+	}
+
+	digits := make([]rune, 0, len(mantissa))
+	fracDigits := 0
+	hasDot := false
+	for _, r := range mantissa {
+		switch {
+		case r >= '0' && r <= '9':
+			digits = append(digits, r)
+			if hasDot {
+				fracDigits++
+			}
+		case r == '.' && !hasDot:
+			hasDot = true
+		default:
+			return nil, fmt.Errorf("invalid NUMERIC literal for cast of %s to NUMERIC: %q", exprSQL, v)
+		}
+	}
+	if len(digits) == 0 {
+		return nil, fmt.Errorf("invalid NUMERIC literal for cast of %s to NUMERIC: %q", exprSQL, v)
+	}
+
+	numerator, ok := new(big.Int).SetString(string(digits), 10)
+	if !ok {
+		return nil, fmt.Errorf("invalid NUMERIC literal for cast of %s to NUMERIC: %q", exprSQL, v)
+	}
+	if sign < 0 {
+		numerator.Neg(numerator)
+	}
+
+	scale := exp - fracDigits
+	if scale >= 0 {
+		return new(big.Rat).SetInt(numerator.Mul(numerator, pow10Int(scale))), nil
+	}
+	return new(big.Rat).SetFrac(numerator, pow10Int(-scale)), nil
 }
 
 func float32ValueFromFloat64(v float64) (spanner.GenericColumnValue, error) {
