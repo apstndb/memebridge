@@ -120,7 +120,11 @@ func memefishExprToGCVWithExpectedType(expectedType *sppb.Type, expr ast.Expr) (
 	case sppb.TypeCode_ARRAY:
 		array, ok := unwrapped.(*ast.ArrayLiteral)
 		if ok && array.Type != nil {
-			return arrayLiteralToGCVStrict(array, expectedType.GetArrayElementType())
+			gcv, err := arrayLiteralToGCVStrict(array, nil)
+			if err != nil {
+				return zeroGCV, err
+			}
+			return castGCV(gcv, expectedType, expr.SQL())
 		}
 	case sppb.TypeCode_STRUCT:
 		switch e := unwrapped.(type) {
