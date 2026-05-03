@@ -845,16 +845,12 @@ func parseNumericLiteralForCast(v, exprSQL string) (*big.Rat, error) {
 	}
 
 	mantissa := unsigned
-	exp := 0
+	expText := ""
 	if idx := strings.IndexAny(unsigned, "eE"); idx >= 0 {
 		if strings.ContainsAny(unsigned[idx+1:], "eE") {
 			return nil, fmt.Errorf("invalid NUMERIC literal for cast of %s to NUMERIC: %q", exprSQL, v)
 		}
-		parsedExp, err := strconv.Atoi(unsigned[idx+1:])
-		if err != nil {
-			return nil, fmt.Errorf("invalid NUMERIC literal for cast of %s to NUMERIC: %q", exprSQL, v)
-		}
-		exp = parsedExp
+		expText = unsigned[idx+1:]
 		mantissa = unsigned[:idx]
 	}
 
@@ -883,7 +879,11 @@ func parseNumericLiteralForCast(v, exprSQL string) (*big.Rat, error) {
 		return new(big.Rat), nil
 	}
 
-	scaledInt, err := roundedScaledNumericInt(trimmedDigits, exp-fracDigits, exprSQL, v)
+	exp, err := parseNumericExponentForCast(expText, exprSQL, v)
+	if err != nil {
+		return nil, err
+	}
+	scaledInt, err := roundedScaledNumericInt(trimmedDigits, exp-int64(fracDigits), exprSQL, v)
 	if err != nil {
 		return nil, err
 	}
@@ -893,10 +893,25 @@ func parseNumericLiteralForCast(v, exprSQL string) (*big.Rat, error) {
 	return new(big.Rat).SetFrac(scaledInt, numericScaleFactor), nil
 }
 
-func roundedScaledNumericInt(digits string, scale int, exprSQL, original string) (*big.Int, error) {
+func parseNumericExponentForCast(expText, exprSQL, original string) (int64, error) {
+	if expText == "" {
+		return 0, nil
+	}
+	exp, err := strconv.ParseInt(expText, 10, 64)
+	if err != nil {
+		var numErr *strconv.NumError
+		if errors.As(err, &numErr) && errors.Is(numErr.Err, strconv.ErrRange) {
+			return 0, fmt.Errorf("NUMERIC value out of range: %q%s", original, exprContextSuffix(exprSQL))
+		}
+		return 0, fmt.Errorf("invalid NUMERIC literal for cast of %s to NUMERIC: %q", exprSQL, original)
+	}
+	return exp, nil
+}
+
+func roundedScaledNumericInt(digits string, scale int64, exprSQL, original string) (*big.Int, error) {
 	shift := scale + spanner.NumericScaleDigits
 	if shift >= 0 {
-		if len(digits)+shift > spanner.NumericPrecisionDigits {
+		if int64(len(digits))+shift > int64(spanner.NumericPrecisionDigits) {
 			return nil, fmt.Errorf("NUMERIC value out of range: %q%s", original, exprContextSuffix(exprSQL))
 		}
 		scaled, ok := new(big.Int).SetString(digits, 10)
@@ -904,26 +919,26 @@ func roundedScaledNumericInt(digits string, scale int, exprSQL, original string)
 			return nil, fmt.Errorf("invalid NUMERIC literal for cast of %s to NUMERIC: %q", exprSQL, original)
 		}
 		if shift > 0 {
-			scaled.Mul(scaled, pow10Int(shift))
+			scaled.Mul(scaled, pow10Int(int(shift)))
 		}
 		return scaled, nil
 	}
 
 	denomDigits := -shift
-	if len(digits) < denomDigits {
+	if int64(len(digits)) < denomDigits {
 		return new(big.Int), nil
 	}
 
 	quotientDigits := "0"
-	if len(digits) > denomDigits {
-		quotientDigits = digits[:len(digits)-denomDigits]
+	if int64(len(digits)) > denomDigits {
+		quotientDigits = digits[:len(digits)-int(denomDigits)]
 	}
 	quotient, ok := new(big.Int).SetString(quotientDigits, 10)
 	if !ok {
 		return nil, fmt.Errorf("invalid NUMERIC literal for cast of %s to NUMERIC: %q", exprSQL, original)
 	}
 
-	remainderFirstDigit := digits[len(digits)-denomDigits]
+	remainderFirstDigit := digits[len(digits)-int(denomDigits)]
 	if remainderFirstDigit >= '5' {
 		quotient.Add(quotient, big.NewInt(1))
 	}
