@@ -824,8 +824,6 @@ func parseSpannerFloat(v string, bitSize int) (float64, error) {
 }
 
 func parseNumericLiteralForCast(v, exprSQL string) (*big.Rat, error) {
-	const maxNumericScientificExponent = 1000
-
 	v = strings.TrimSpace(v)
 	if strings.Contains(v, "/") {
 		return nil, fmt.Errorf("invalid NUMERIC literal for cast of %s to NUMERIC: %q", exprSQL, v)
@@ -853,7 +851,7 @@ func parseNumericLiteralForCast(v, exprSQL string) (*big.Rat, error) {
 			return nil, fmt.Errorf("invalid NUMERIC literal for cast of %s to NUMERIC: %q", exprSQL, v)
 		}
 		parsedExp, err := strconv.Atoi(unsigned[idx+1:])
-		if err != nil || parsedExp > maxNumericScientificExponent || parsedExp < -maxNumericScientificExponent {
+		if err != nil {
 			return nil, fmt.Errorf("invalid NUMERIC literal for cast of %s to NUMERIC: %q", exprSQL, v)
 		}
 		exp = parsedExp
@@ -880,19 +878,59 @@ func parseNumericLiteralForCast(v, exprSQL string) (*big.Rat, error) {
 		return nil, fmt.Errorf("invalid NUMERIC literal for cast of %s to NUMERIC: %q", exprSQL, v)
 	}
 
-	numerator, ok := new(big.Int).SetString(string(digits), 10)
-	if !ok {
-		return nil, fmt.Errorf("invalid NUMERIC literal for cast of %s to NUMERIC: %q", exprSQL, v)
-	}
-	if sign < 0 {
-		numerator.Neg(numerator)
+	trimmedDigits := strings.TrimLeft(string(digits), "0")
+	if trimmedDigits == "" {
+		return new(big.Rat), nil
 	}
 
-	scale := exp - fracDigits
-	if scale >= 0 {
-		return new(big.Rat).SetInt(numerator.Mul(numerator, pow10Int(scale))), nil
+	scaledInt, err := roundedScaledNumericInt(trimmedDigits, exp-fracDigits, exprSQL, v)
+	if err != nil {
+		return nil, err
 	}
-	return new(big.Rat).SetFrac(numerator, pow10Int(-scale)), nil
+	if sign < 0 {
+		scaledInt.Neg(scaledInt)
+	}
+	return new(big.Rat).SetFrac(scaledInt, numericScaleFactor), nil
+}
+
+func roundedScaledNumericInt(digits string, scale int, exprSQL, original string) (*big.Int, error) {
+	shift := scale + spanner.NumericScaleDigits
+	if shift >= 0 {
+		if len(digits)+shift > spanner.NumericPrecisionDigits {
+			return nil, fmt.Errorf("NUMERIC value out of range: %q%s", original, exprContextSuffix(exprSQL))
+		}
+		scaled, ok := new(big.Int).SetString(digits, 10)
+		if !ok {
+			return nil, fmt.Errorf("invalid NUMERIC literal for cast of %s to NUMERIC: %q", exprSQL, original)
+		}
+		if shift > 0 {
+			scaled.Mul(scaled, pow10Int(shift))
+		}
+		return scaled, nil
+	}
+
+	denomDigits := -shift
+	if len(digits) < denomDigits {
+		return new(big.Int), nil
+	}
+
+	quotientDigits := "0"
+	if len(digits) > denomDigits {
+		quotientDigits = digits[:len(digits)-denomDigits]
+	}
+	quotient, ok := new(big.Int).SetString(quotientDigits, 10)
+	if !ok {
+		return nil, fmt.Errorf("invalid NUMERIC literal for cast of %s to NUMERIC: %q", exprSQL, original)
+	}
+
+	remainderFirstDigit := digits[len(digits)-denomDigits]
+	if remainderFirstDigit >= '5' {
+		quotient.Add(quotient, big.NewInt(1))
+	}
+	if quotient.String() != "0" && len(quotient.String()) > spanner.NumericPrecisionDigits {
+		return nil, fmt.Errorf("NUMERIC value out of range: %q%s", original, exprContextSuffix(exprSQL))
+	}
+	return quotient, nil
 }
 
 func float32ValueFromFloat64(v float64) (spanner.GenericColumnValue, error) {

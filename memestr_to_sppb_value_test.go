@@ -579,3 +579,17 @@ func TestParseExpr_InvalidCastReturnsError(t *testing.T) {
 		})
 	}
 }
+
+func TestParseExpr_NumericCastUnderflowRoundsToZero(t *testing.T) {
+	input := `CAST("0.` + strings.Repeat("0", 1200) + `1" AS NUMERIC)`
+
+	got, err := memebridge.ParseExpr("", input)
+	if err != nil {
+		t.Fatalf("ParseExpr returned error: %v", err)
+	}
+
+	want := gcvctor.NumericValue(big.NewRat(0, 1))
+	if diff := cmp.Diff(want, got, protocmp.Transform(), cmpopts.EquateNaNs()); diff != "" {
+		t.Fatalf("ParseExpr mismatch (-want +got):\n%s", diff)
+	}
+}
