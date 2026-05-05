@@ -471,6 +471,7 @@ func inferArrayElementType(exprs []ast.Expr, gcvs []spanner.GenericColumnValue) 
 		first                             *sppb.Type
 		hasInt64, hasNumeric              bool
 		hasFloat32, hasFloat64, hasString bool
+		hasOther                          bool
 	)
 	for i, expr := range exprs {
 		if _, ok := unwrapParenExpr(expr).(*ast.NullLiteral); ok {
@@ -492,7 +493,7 @@ func inferArrayElementType(exprs []ast.Expr, gcvs []spanner.GenericColumnValue) 
 		case sppb.TypeCode_STRING:
 			hasString = true
 		default:
-			// Non-numeric, non-STRING types are handled below.
+			hasOther = true
 		}
 	}
 	if first == nil {
@@ -528,6 +529,9 @@ func inferArrayElementType(exprs []ast.Expr, gcvs []spanner.GenericColumnValue) 
 		if nonStringType != nil && isStringLiteralCoercibleTypeCode(nonStringType.GetCode()) {
 			return nonStringType
 		}
+		return nil
+	}
+	if hasOther {
 		return nil
 	}
 

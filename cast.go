@@ -846,7 +846,9 @@ func parseNumericLiteralForCast(v, exprSQL string) (*big.Rat, error) {
 
 	mantissa := unsigned
 	expText := ""
+	hasExponent := false
 	if idx := strings.IndexAny(unsigned, "eE"); idx >= 0 {
+		hasExponent = true
 		if strings.ContainsAny(unsigned[idx+1:], "eE") {
 			return nil, fmt.Errorf("invalid NUMERIC literal for cast of %s to NUMERIC: %q", exprSQL, v)
 		}
@@ -879,7 +881,7 @@ func parseNumericLiteralForCast(v, exprSQL string) (*big.Rat, error) {
 		return new(big.Rat), nil
 	}
 
-	exp, err := parseNumericExponentForCast(expText, exprSQL, v)
+	exp, err := parseNumericExponentForCast(expText, hasExponent, exprSQL, v)
 	if err != nil {
 		return nil, err
 	}
@@ -893,9 +895,12 @@ func parseNumericLiteralForCast(v, exprSQL string) (*big.Rat, error) {
 	return new(big.Rat).SetFrac(scaledInt, numericScaleFactor), nil
 }
 
-func parseNumericExponentForCast(expText, exprSQL, original string) (int64, error) {
-	if expText == "" {
+func parseNumericExponentForCast(expText string, hasExponent bool, exprSQL, original string) (int64, error) {
+	if !hasExponent {
 		return 0, nil
+	}
+	if expText == "" {
+		return 0, fmt.Errorf("invalid NUMERIC literal for cast of %s to NUMERIC: %q", exprSQL, original)
 	}
 	exp, err := strconv.ParseInt(expText, 10, 64)
 	if err != nil {
