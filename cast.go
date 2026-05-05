@@ -90,7 +90,7 @@ func memefishCastExprToGCV(cast *ast.CastExpr) (spanner.GenericColumnValue, erro
 func castGCV(src spanner.GenericColumnValue, destType *sppb.Type, exprSQL string) (spanner.GenericColumnValue, error) {
 	srcCode := src.Type.GetCode()
 	destCode := destType.GetCode()
-	if proto.Equal(src.Type, destType) {
+	if equivalentSpannerTypes(src.Type, destType) {
 		return spanner.GenericColumnValue{Type: destType, Value: src.Value}, nil
 	}
 	if isNullGCV(src) {
@@ -500,7 +500,7 @@ func castGCVToArray(src spanner.GenericColumnValue, destType *sppb.Type, exprSQL
 	// https://docs.cloud.google.com/spanner/docs/reference/standard-sql/conversion_rules
 	// https://github.com/google/googlesql/blob/36dd14aa0657ea299725504bc0f938732f58f380/googlesql/public/cast.h#L45-L66
 	// https://github.com/google/googlesql/blob/36dd14aa0657ea299725504bc0f938732f58f380/googlesql/public/cast.cc#L282-L289
-	if !proto.Equal(src.Type, destType) {
+	if !equivalentSpannerTypes(src.Type, destType) {
 		return zeroGCV, unsupportedArrayCastError(src.Type, destType, exprSQL)
 	}
 	return spanner.GenericColumnValue{Type: destType, Value: src.Value}, nil
@@ -985,6 +985,33 @@ func safeSubInt64(a, b int64) (int64, bool) {
 		return 0, false
 	}
 	return a - b, true
+}
+
+func equivalentSpannerTypes(a, b *sppb.Type) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	if a.GetCode() != b.GetCode() {
+		return false
+	}
+	switch a.GetCode() {
+	case sppb.TypeCode_ARRAY:
+		return equivalentSpannerTypes(a.GetArrayElementType(), b.GetArrayElementType())
+	case sppb.TypeCode_STRUCT:
+		aFields := a.GetStructType().GetFields()
+		bFields := b.GetStructType().GetFields()
+		if len(aFields) != len(bFields) {
+			return false
+		}
+		for i := range aFields {
+			if !equivalentSpannerTypes(aFields[i].GetType(), bFields[i].GetType()) {
+				return false
+			}
+		}
+		return true
+	default:
+		return proto.Equal(a, b)
+	}
 }
 
 func float32ValueFromFloat64(v float64) (spanner.GenericColumnValue, error) {

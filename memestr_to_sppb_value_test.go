@@ -238,6 +238,20 @@ func TestParseExpr(t *testing.T) {
 			)),
 		},
 		{
+			`[STRUCT(1 AS a), STRUCT(2 AS b)]`,
+			must(gcvctor.ArrayValueOf(
+				typector.NameTypeToStructType("a", typector.Int64()),
+				must(gcvctor.StructValueOf(
+					[]string{"a"},
+					[]spanner.GenericColumnValue{gcvctor.Int64Value(1)},
+				)),
+				must(gcvctor.StructValueOf(
+					[]string{"a"},
+					[]spanner.GenericColumnValue{gcvctor.Int64Value(2)},
+				)),
+			)),
+		},
+		{
 			`ARRAY<STRUCT<n NUMERIC>>[STRUCT(1), STRUCT(NULL)]`,
 			must(gcvctor.ArrayValueOf(
 				typector.NameTypeToStructType("n", typector.Numeric()),
@@ -330,6 +344,16 @@ func TestParseExpr(t *testing.T) {
 		{`CAST(CAST("00000000-0000-4000-8000-000000000000" AS UUID) AS BYTES)`, gcvctor.BytesValue([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})},
 		{`CAST(CAST("P1Y" AS INTERVAL) AS STRING)`, gcvctor.StringValue("P1Y")},
 		{`CAST([1] AS ARRAY<INT64>)`, must(gcvctor.ArrayValueOf(typector.Int64(), gcvctor.Int64Value(1)))},
+		{
+			`CAST([STRUCT(1 AS a)] AS ARRAY<STRUCT<b INT64>>)`,
+			must(gcvctor.ArrayValueOf(
+				typector.NameTypeToStructType("b", typector.Int64()),
+				must(gcvctor.StructValueOf(
+					[]string{"b"},
+					[]spanner.GenericColumnValue{gcvctor.Int64Value(1)},
+				)),
+			)),
+		},
 		{`CAST("1e2" AS NUMERIC)`, gcvctor.NumericValue(big.NewRat(100, 1))},
 		{
 			`CAST(STRUCT(1 AS foo) AS STRUCT<foo INT64>)`,

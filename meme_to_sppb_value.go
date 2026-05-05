@@ -510,7 +510,7 @@ func inferArrayElementType(exprs []ast.Expr, gcvs []spanner.GenericColumnValue) 
 			continue
 		}
 		typ := gcvs[i].Type
-		if !proto.Equal(first, typ) {
+		if !equivalentSpannerTypes(first, typ) {
 			allSame = false
 		}
 		if typ.GetCode() == sppb.TypeCode_STRING {
@@ -520,7 +520,7 @@ func inferArrayElementType(exprs []ast.Expr, gcvs []spanner.GenericColumnValue) 
 			nonStringType = typ
 			continue
 		}
-		if !proto.Equal(nonStringType, typ) {
+		if !equivalentSpannerTypes(nonStringType, typ) {
 			nonStringType = nil
 			break
 		}
@@ -643,8 +643,8 @@ func coerceArrayElements(elemType *sppb.Type, gcvs []spanner.GenericColumnValue)
 			coerced[i] = gcvctor.NullOf(elemType)
 			continue
 		}
-		if proto.Equal(gcv.Type, elemType) {
-			coerced[i] = gcv
+		if equivalentSpannerTypes(gcv.Type, elemType) {
+			coerced[i] = spanner.GenericColumnValue{Type: elemType, Value: gcv.Value}
 			continue
 		}
 		elem, err := coerceArrayElement(elemType, gcv)
