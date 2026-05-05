@@ -1007,6 +1007,12 @@ func equivalentSpannerTypes(a, b *sppb.Type) bool {
 			return false
 		}
 		for i := range aFields {
+			if aFields[i] == nil || bFields[i] == nil {
+				if aFields[i] != bFields[i] {
+					return false
+				}
+				continue
+			}
 			if !equivalentSpannerTypes(aFields[i].GetType(), bFields[i].GetType()) {
 				return false
 			}
