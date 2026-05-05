@@ -961,7 +961,7 @@ func roundedScaledNumericInt(digits string, exp, fracDigits int64, exprSQL, orig
 	if remainderFirstDigit >= '5' {
 		quotient.Add(quotient, big.NewInt(1))
 	}
-	if quotient.String() != "0" && len(quotient.String()) > spanner.NumericPrecisionDigits {
+	if quotient.Cmp(maxScaledNumeric) > 0 {
 		return nil, fmt.Errorf("NUMERIC value out of range: %q%s", original, exprContextSuffix(exprSQL))
 	}
 	return quotient, nil
