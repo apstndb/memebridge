@@ -554,6 +554,7 @@ func TestParseExpr_InvalidCastReturnsError(t *testing.T) {
 		`[1, "2"]`,
 		`[TRUE, 1]`,
 		`[1, DATE "2020-01-01"]`,
+		`[CAST("2020-01-01" AS STRING), DATE "2020-01-02"]`,
 		`[CAST("P1Y" AS INTERVAL), "P2Y"]`,
 		`["P1Y", CAST("P2Y" AS INTERVAL)]`,
 		`STRUCT<a ARRAY<INT64>>(["1"])`,
