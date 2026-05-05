@@ -856,19 +856,17 @@ func parseNumericLiteralForCast(v, exprSQL string) (*big.Rat, error) {
 		mantissa = unsigned[:idx]
 	}
 
-	digits := make([]rune, 0, len(mantissa))
+	digits := mantissa
 	fracDigits := 0
-	hasDot := false
-	for _, r := range mantissa {
-		switch {
-		case r >= '0' && r <= '9':
-			digits = append(digits, r)
-			if hasDot {
-				fracDigits++
-			}
-		case r == '.' && !hasDot:
-			hasDot = true
-		default:
+	if dotIdx := strings.Index(mantissa, "."); dotIdx >= 0 {
+		if strings.LastIndex(mantissa, ".") != dotIdx {
+			return nil, fmt.Errorf("invalid NUMERIC literal for cast of %s to NUMERIC: %q", exprSQL, v)
+		}
+		digits = mantissa[:dotIdx] + mantissa[dotIdx+1:]
+		fracDigits = len(mantissa) - 1 - dotIdx
+	}
+	for _, r := range digits {
+		if r < '0' || r > '9' {
 			return nil, fmt.Errorf("invalid NUMERIC literal for cast of %s to NUMERIC: %q", exprSQL, v)
 		}
 	}
@@ -876,7 +874,7 @@ func parseNumericLiteralForCast(v, exprSQL string) (*big.Rat, error) {
 		return nil, fmt.Errorf("invalid NUMERIC literal for cast of %s to NUMERIC: %q", exprSQL, v)
 	}
 
-	trimmedDigits := strings.TrimLeft(string(digits), "0")
+	trimmedDigits := strings.TrimLeft(digits, "0")
 	if trimmedDigits == "" {
 		return new(big.Rat), nil
 	}
@@ -998,8 +996,13 @@ func equivalentSpannerTypes(a, b *sppb.Type) bool {
 	case sppb.TypeCode_ARRAY:
 		return equivalentSpannerTypes(a.GetArrayElementType(), b.GetArrayElementType())
 	case sppb.TypeCode_STRUCT:
-		aFields := a.GetStructType().GetFields()
-		bFields := b.GetStructType().GetFields()
+		aStruct := a.GetStructType()
+		bStruct := b.GetStructType()
+		if aStruct == nil || bStruct == nil {
+			return aStruct == nil && bStruct == nil
+		}
+		aFields := aStruct.GetFields()
+		bFields := bStruct.GetFields()
 		if len(aFields) != len(bFields) {
 			return false
 		}

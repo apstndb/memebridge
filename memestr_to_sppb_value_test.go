@@ -145,6 +145,19 @@ func TestParseExpr(t *testing.T) {
 			)),
 		},
 		{
+			`STRUCT<a ARRAY<NUMERIC>>([1, NULL])`,
+			must(gcvctor.StructValueOf(
+				[]string{"a"},
+				[]spanner.GenericColumnValue{
+					must(gcvctor.ArrayValueOf(
+						typector.Numeric(),
+						gcvctor.NumericValue(big.NewRat(1, 1)),
+						gcvctor.NullOf(typector.Numeric()),
+					)),
+				},
+			)),
+		},
+		{
 			`STRUCT<a ARRAY<NUMERIC>>(ARRAY<NUMERIC>[1, NULL])`,
 			must(gcvctor.StructValueOf(
 				[]string{"a"},
@@ -158,6 +171,19 @@ func TestParseExpr(t *testing.T) {
 			)),
 		},
 		{
+			`STRUCT<a ARRAY<FLOAT64>>([1, NUMERIC "2.5"])`,
+			must(gcvctor.StructValueOf(
+				[]string{"a"},
+				[]spanner.GenericColumnValue{
+					must(gcvctor.ArrayValueOf(
+						typector.Float64(),
+						gcvctor.Float64Value(1),
+						gcvctor.Float64Value(2.5),
+					)),
+				},
+			)),
+		},
+		{
 			`STRUCT<a ARRAY<FLOAT64>>(ARRAY<FLOAT64>[1, NUMERIC "2.5"])`,
 			must(gcvctor.StructValueOf(
 				[]string{"a"},
@@ -166,6 +192,18 @@ func TestParseExpr(t *testing.T) {
 						typector.Float64(),
 						gcvctor.Float64Value(1),
 						gcvctor.Float64Value(2.5),
+					)),
+				},
+			)),
+		},
+		{
+			`STRUCT<a ARRAY<DATE>>(["1970-01-01"])`,
+			must(gcvctor.StructValueOf(
+				[]string{"a"},
+				[]spanner.GenericColumnValue{
+					must(gcvctor.ArrayValueOf(
+						typector.Date(),
+						gcvctor.DateValue(civil.Date{Year: 1970, Month: time.January, Day: 1}),
 					)),
 				},
 			)),
@@ -214,6 +252,25 @@ func TestParseExpr(t *testing.T) {
 					must(gcvctor.StructValueOf(
 						[]string{"outer_date"},
 						[]spanner.GenericColumnValue{gcvctor.DateValue(civil.Date{Year: 1970, Month: time.January, Day: 1})},
+					)),
+				},
+			)),
+		},
+		{
+			`STRUCT<a ARRAY<STRUCT<n NUMERIC>>>([STRUCT(1), STRUCT(NULL)])`,
+			must(gcvctor.StructValueOf(
+				[]string{"a"},
+				[]spanner.GenericColumnValue{
+					must(gcvctor.ArrayValueOf(
+						typector.NameTypeToStructType("n", typector.Numeric()),
+						must(gcvctor.StructValueOf(
+							[]string{"n"},
+							[]spanner.GenericColumnValue{gcvctor.NumericValue(big.NewRat(1, 1))},
+						)),
+						must(gcvctor.StructValueOf(
+							[]string{"n"},
+							[]spanner.GenericColumnValue{gcvctor.NullOf(typector.Numeric())},
+						)),
 					)),
 				},
 			)),
@@ -585,16 +642,12 @@ func TestParseExpr_InvalidCastReturnsError(t *testing.T) {
 		`STRUCT<a ARRAY<BYTES>>(["foo"])`,
 		`STRUCT<a ARRAY<DATE>>(["not-a-date"])`,
 		`STRUCT<a ARRAY<INT64>>([CAST(NULL AS STRING)])`,
-		`STRUCT<a ARRAY<NUMERIC>>([1, NULL])`,
-		`STRUCT<a ARRAY<FLOAT64>>([1, NUMERIC "2.5"])`,
-		`STRUCT<a ARRAY<DATE>>(["1970-01-01"])`,
 		`STRUCT<a ARRAY<FLOAT64>>(ARRAY<INT64>[1])`,
 		`STRUCT<f32 FLOAT32>(CAST(NULL AS INT64))`,
 		`STRUCT<a ARRAY<FLOAT32>>([CAST(NULL AS INT64)])`,
 		`STRUCT<a ARRAY<FLOAT32>>([CAST(1 AS FLOAT64)])`,
 		`STRUCT<s STRUCT<d DATE>>(STRUCT("not-a-date"))`,
 		`STRUCT<s STRUCT<d DATE>>(STRUCT<d BYTES>("1970-01-01"))`,
-		`STRUCT<a ARRAY<STRUCT<n NUMERIC>>>([STRUCT(1), STRUCT(NULL)])`,
 		`STRUCT<a ARRAY<STRUCT<d DATE>>>([STRUCT("not-a-date")])`,
 		`CAST([1] AS ARRAY<BYTES>)`,
 		`CAST([1] AS ARRAY<FLOAT64>)`,

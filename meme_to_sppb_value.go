@@ -119,12 +119,15 @@ func memefishExprToGCVWithExpectedType(expectedType *sppb.Type, expr ast.Expr) (
 	switch expectedType.GetCode() {
 	case sppb.TypeCode_ARRAY:
 		array, ok := unwrapped.(*ast.ArrayLiteral)
-		if ok && array.Type != nil {
-			gcv, err := arrayLiteralToGCVStrict(array, nil)
-			if err != nil {
-				return zeroGCV, err
+		if ok {
+			if array.Type != nil {
+				gcv, err := arrayLiteralToGCVStrict(array, nil)
+				if err != nil {
+					return zeroGCV, err
+				}
+				return castGCV(gcv, expectedType, expr.SQL())
 			}
-			return castGCV(gcv, expectedType, expr.SQL())
+			return arrayLiteralToGCVStrict(array, expectedType.GetArrayElementType())
 		}
 	case sppb.TypeCode_STRUCT:
 		switch e := unwrapped.(type) {
@@ -555,7 +558,9 @@ func inferArrayElementType(exprs []ast.Expr, gcvs []spanner.GenericColumnValue) 
 
 // Cloud Spanner's literal coercion table is narrower than explicit CAST:
 // STRING literals may implicitly coerce to DATE/TIMESTAMP/UUID in typed
-// contexts, but not to INTERVAL/INT64/NUMERIC. See:
+// contexts, but not to INTERVAL/INT64/NUMERIC. In particular, real Spanner
+// still requires explicit CAST for STRING->INTERVAL in these expected-type
+// paths even though CAST("P1Y" AS INTERVAL) itself is valid. See:
 // https://docs.cloud.google.com/spanner/docs/reference/standard-sql/conversion_rules
 // https://github.com/google/googlesql/blob/36dd14aa0657ea299725504bc0f938732f58f380/googlesql/public/cast.h#L45-L66
 // https://github.com/google/googlesql/blob/36dd14aa0657ea299725504bc0f938732f58f380/googlesql/public/cast.cc#L213-L297
