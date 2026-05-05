@@ -120,11 +120,24 @@ func memefishExprToGCVWithExpectedType(expectedType *sppb.Type, expr ast.Expr) (
 	case sppb.TypeCode_ARRAY:
 		array, ok := unwrapped.(*ast.ArrayLiteral)
 		if ok {
+			if array.Type != nil {
+				gcv, err := arrayLiteralToGCVStrict(array, nil)
+				if err != nil {
+					return zeroGCV, err
+				}
+				return castGCV(gcv, expectedType, expr.SQL())
+			}
 			return arrayLiteralToGCVStrict(array, expectedType.GetArrayElementType())
 		}
 	case sppb.TypeCode_STRUCT:
-		switch unwrapped.(type) {
-		case *ast.TypelessStructLiteral, *ast.TupleStructLiteral, *ast.TypedStructLiteral:
+		switch e := unwrapped.(type) {
+		case *ast.TypedStructLiteral:
+			gcv, err := typedStructLiteralToGCV(e)
+			if err != nil {
+				return zeroGCV, err
+			}
+			return castGCV(gcv, expectedType, expr.SQL())
+		case *ast.TypelessStructLiteral, *ast.TupleStructLiteral:
 			return structLiteralToGCVWithExpectedType(expectedType, unwrapped)
 		}
 	}
@@ -240,7 +253,7 @@ func canCoerceToExpectedType(expectedType, valueType *sppb.Type, expr ast.Expr) 
 		default:
 			return false
 		}
-	case sppb.TypeCode_DATE, sppb.TypeCode_TIMESTAMP, sppb.TypeCode_UUID, sppb.TypeCode_INTERVAL:
+	case sppb.TypeCode_DATE, sppb.TypeCode_TIMESTAMP, sppb.TypeCode_UUID:
 		return valueType.GetCode() == sppb.TypeCode_STRING && isStringLiteral(expr)
 	default:
 		return false
@@ -287,7 +300,7 @@ func isStringLiteral(expr ast.Expr) bool {
 
 func isStringLiteralCoercion(fieldType, valueType *sppb.Type, expr ast.Expr) bool {
 	switch fieldType.GetCode() {
-	case sppb.TypeCode_DATE, sppb.TypeCode_TIMESTAMP, sppb.TypeCode_UUID, sppb.TypeCode_INTERVAL:
+	case sppb.TypeCode_DATE, sppb.TypeCode_TIMESTAMP, sppb.TypeCode_UUID:
 		return valueType.GetCode() == sppb.TypeCode_STRING && isStringLiteral(expr)
 	default:
 		return false
@@ -304,7 +317,7 @@ func coerceStringLiteralToExpectedType(
 	}
 	// GoogleSQL literal coercion is stricter than CAST parsing here. Do not
 	// trim whitespace; only canonical literal text should satisfy an expected
-	// DATE, TIMESTAMP, UUID, or INTERVAL field type.
+	// DATE, TIMESTAMP, or UUID field type.
 	switch expectedType.GetCode() {
 	case sppb.TypeCode_DATE:
 		return gcvctor.DateStringValue(lit.Value)
@@ -313,14 +326,12 @@ func coerceStringLiteralToExpectedType(
 	case sppb.TypeCode_UUID:
 		u, err := uuid.Parse(lit.Value)
 		if err != nil {
-			return zeroGCV, fmt.Errorf("invalid UUID literal for typed struct field %q: %w", lit.Value, err)
+			return zeroGCV, fmt.Errorf("invalid UUID literal %q for expected type %v: %w", lit.Value, expectedType.GetCode(), err)
 		}
 		if !strings.EqualFold(u.String(), lit.Value) {
-			return zeroGCV, fmt.Errorf("invalid UUID literal for typed struct field: %q", lit.Value)
+			return zeroGCV, fmt.Errorf("invalid UUID literal %q for expected type %v", lit.Value, expectedType.GetCode())
 		}
 		return gcvctor.UUIDValue(u), nil
-	case sppb.TypeCode_INTERVAL:
-		return gcvctor.IntervalStringValue(lit.Value)
 	default:
 		return zeroGCV, fmt.Errorf("cannot coerce string literal to expected type %v", expectedType.GetCode())
 	}
@@ -459,8 +470,12 @@ func inferArrayElementType(exprs []ast.Expr, gcvs []spanner.GenericColumnValue) 
 		return nil
 	}
 
-	var first *sppb.Type
-	var hasInt64, hasNumeric, hasFloat32, hasFloat64, hasOther bool
+	var (
+		first                             *sppb.Type
+		hasInt64, hasNumeric              bool
+		hasFloat32, hasFloat64, hasString bool
+		hasNonLiteralString, hasOther     bool
+	)
 	for i, expr := range exprs {
 		if _, ok := unwrapParenExpr(expr).(*ast.NullLiteral); ok {
 			continue
@@ -478,6 +493,11 @@ func inferArrayElementType(exprs []ast.Expr, gcvs []spanner.GenericColumnValue) 
 			hasFloat32 = true
 		case sppb.TypeCode_FLOAT64:
 			hasFloat64 = true
+		case sppb.TypeCode_STRING:
+			hasString = true
+			if !isStringLiteral(expr) {
+				hasNonLiteralString = true
+			}
 		default:
 			hasOther = true
 		}
@@ -485,28 +505,40 @@ func inferArrayElementType(exprs []ast.Expr, gcvs []spanner.GenericColumnValue) 
 	if first == nil {
 		return typector.Int64()
 	}
-	if hasOther {
-		// When STRING values are mixed with a single non-STRING type,
-		// prefer the non-STRING type so that string coercion can apply,
-		// but only for scalar types that actually support STRING casts.
-		var nonStringType *sppb.Type
-		for i, expr := range exprs {
-			if _, ok := unwrapParenExpr(expr).(*ast.NullLiteral); ok {
-				continue
-			}
-			typ := gcvs[i].Type
-			if typ.GetCode() != sppb.TypeCode_STRING {
-				if nonStringType == nil {
-					nonStringType = typ
-				} else if !proto.Equal(nonStringType, typ) {
-					return first
-				}
-			}
+
+	allSame := true
+	var nonStringType *sppb.Type
+	for i, expr := range exprs {
+		if _, ok := unwrapParenExpr(expr).(*ast.NullLiteral); ok {
+			continue
 		}
-		if nonStringType != nil && isStringCastableTypeCode(nonStringType.GetCode()) {
+		typ := gcvs[i].Type
+		if !equivalentSpannerTypes(first, typ) {
+			allSame = false
+		}
+		if typ.GetCode() == sppb.TypeCode_STRING {
+			continue
+		}
+		if nonStringType == nil {
+			nonStringType = typ
+			continue
+		}
+		if !equivalentSpannerTypes(nonStringType, typ) {
+			nonStringType = nil
+			break
+		}
+	}
+	if allSame {
+		return first
+	}
+	if hasString {
+		if !hasNonLiteralString && nonStringType != nil && isStringLiteralCoercibleTypeCode(nonStringType.GetCode()) {
 			return nonStringType
 		}
-		return first
+		return nil
+	}
+	if hasOther {
+		return nil
 	}
 
 	switch {
@@ -520,22 +552,24 @@ func inferArrayElementType(exprs []ast.Expr, gcvs []spanner.GenericColumnValue) 
 		return typector.Numeric()
 	case hasInt64:
 		return typector.Int64()
-	default:
-		return first
 	}
+	return nil
 }
 
-// isStringCastableTypeCode reports whether castGCV supports STRING -> code.
-// It returns true for all scalar types because castGCV validates the specific
-// conversion (e.g., parsing BOOL, INT64, BYTES). Complex types are excluded
-// because castGCV does not currently support STRING->JSON, and ARRAY/STRUCT
-// require structured parsing rather than a simple string cast.
-func isStringCastableTypeCode(code sppb.TypeCode) bool {
+// Cloud Spanner's literal coercion table is narrower than explicit CAST:
+// STRING literals may implicitly coerce to DATE/TIMESTAMP/UUID in typed
+// contexts, but not to INTERVAL/INT64/NUMERIC. In particular, real Spanner
+// still requires explicit CAST for STRING->INTERVAL in these expected-type
+// paths even though CAST("P1Y" AS INTERVAL) itself is valid. See:
+// https://docs.cloud.google.com/spanner/docs/reference/standard-sql/conversion_rules
+// https://github.com/google/googlesql/blob/36dd14aa0657ea299725504bc0f938732f58f380/googlesql/public/cast.h#L45-L66
+// https://github.com/google/googlesql/blob/36dd14aa0657ea299725504bc0f938732f58f380/googlesql/public/cast.cc#L213-L297
+func isStringLiteralCoercibleTypeCode(code sppb.TypeCode) bool {
 	switch code {
-	case sppb.TypeCode_ARRAY, sppb.TypeCode_STRUCT, sppb.TypeCode_JSON:
-		return false
-	default:
+	case sppb.TypeCode_DATE, sppb.TypeCode_TIMESTAMP, sppb.TypeCode_UUID:
 		return true
+	default:
+		return false
 	}
 }
 
@@ -614,8 +648,8 @@ func coerceArrayElements(elemType *sppb.Type, gcvs []spanner.GenericColumnValue)
 			coerced[i] = gcvctor.NullOf(elemType)
 			continue
 		}
-		if proto.Equal(gcv.Type, elemType) {
-			coerced[i] = gcv
+		if equivalentSpannerTypes(gcv.Type, elemType) {
+			coerced[i] = spanner.GenericColumnValue{Type: elemType, Value: gcv.Value}
 			continue
 		}
 		elem, err := coerceArrayElement(elemType, gcv)
