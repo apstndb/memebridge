@@ -503,7 +503,7 @@ func castGCVToArray(src spanner.GenericColumnValue, destType *sppb.Type, exprSQL
 	if !proto.Equal(src.Type, destType) {
 		return zeroGCV, unsupportedArrayCastError(src.Type, destType, exprSQL)
 	}
-	return src, nil
+	return spanner.GenericColumnValue{Type: destType, Value: src.Value}, nil
 }
 
 func gcvToValue(gcv spanner.GenericColumnValue) *structpb.Value {
