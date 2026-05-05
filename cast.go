@@ -883,7 +883,7 @@ func parseNumericLiteralForCast(v, exprSQL string) (*big.Rat, error) {
 	if err != nil {
 		return nil, err
 	}
-	scaledInt, err := roundedScaledNumericInt(trimmedDigits, exp-int64(fracDigits), exprSQL, v)
+	scaledInt, err := roundedScaledNumericInt(trimmedDigits, exp, int64(fracDigits), exprSQL, v)
 	if err != nil {
 		return nil, err
 	}
@@ -908,10 +908,24 @@ func parseNumericExponentForCast(expText, exprSQL, original string) (int64, erro
 	return exp, nil
 }
 
-func roundedScaledNumericInt(digits string, scale int64, exprSQL, original string) (*big.Int, error) {
-	shift := scale + spanner.NumericScaleDigits
+func roundedScaledNumericInt(digits string, exp, fracDigits int64, exprSQL, original string) (*big.Int, error) {
+	scale, ok := safeSubInt64(exp, fracDigits)
+	if !ok {
+		if exp < 0 {
+			return new(big.Int), nil
+		}
+		return nil, fmt.Errorf("NUMERIC value out of range: %q%s", original, exprContextSuffix(exprSQL))
+	}
+	shift, ok := safeAddInt64(scale, int64(spanner.NumericScaleDigits))
+	if !ok {
+		if scale < 0 {
+			return new(big.Int), nil
+		}
+		return nil, fmt.Errorf("NUMERIC value out of range: %q%s", original, exprContextSuffix(exprSQL))
+	}
+	digitsLen := int64(len(digits))
 	if shift >= 0 {
-		if int64(len(digits))+shift > int64(spanner.NumericPrecisionDigits) {
+		if digitsLen > int64(spanner.NumericPrecisionDigits)-shift {
 			return nil, fmt.Errorf("NUMERIC value out of range: %q%s", original, exprContextSuffix(exprSQL))
 		}
 		scaled, ok := new(big.Int).SetString(digits, 10)
@@ -925,12 +939,12 @@ func roundedScaledNumericInt(digits string, scale int64, exprSQL, original strin
 	}
 
 	denomDigits := -shift
-	if int64(len(digits)) < denomDigits {
+	if digitsLen < denomDigits {
 		return new(big.Int), nil
 	}
 
 	quotientDigits := "0"
-	if int64(len(digits)) > denomDigits {
+	if digitsLen > denomDigits {
 		quotientDigits = digits[:len(digits)-int(denomDigits)]
 	}
 	quotient, ok := new(big.Int).SetString(quotientDigits, 10)
@@ -946,6 +960,26 @@ func roundedScaledNumericInt(digits string, scale int64, exprSQL, original strin
 		return nil, fmt.Errorf("NUMERIC value out of range: %q%s", original, exprContextSuffix(exprSQL))
 	}
 	return quotient, nil
+}
+
+func safeAddInt64(a, b int64) (int64, bool) {
+	if b > 0 && a > math.MaxInt64-b {
+		return 0, false
+	}
+	if b < 0 && a < math.MinInt64-b {
+		return 0, false
+	}
+	return a + b, true
+}
+
+func safeSubInt64(a, b int64) (int64, bool) {
+	if b > 0 && a < math.MinInt64+b {
+		return 0, false
+	}
+	if b < 0 && a > math.MaxInt64+b {
+		return 0, false
+	}
+	return a - b, true
 }
 
 func float32ValueFromFloat64(v float64) (spanner.GenericColumnValue, error) {
