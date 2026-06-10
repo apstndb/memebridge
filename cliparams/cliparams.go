@@ -9,6 +9,12 @@
 // as a bare type (for example "ARRAY<STRING>") yields a typed NULL
 // parameter instead, which is how PLAN-mode tools declare parameter types
 // without values.
+//
+// Callers that only bind parameters referenced by the SQL (for example
+// spanner-mycli in NORMAL mode) should filter the input map to used names
+// before calling [ParseMap]. With [WithBareTypeAsNull] enabled, bare-type
+// values are parsed eagerly; filtering avoids producing typed NULL params
+// for names that the statement does not reference.
 package cliparams
 
 import (
