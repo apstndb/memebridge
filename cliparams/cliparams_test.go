@@ -115,6 +115,11 @@ func TestParseAssignments(t *testing.T) {
 			t.Errorf("want duplicate error, got %v", err)
 		}
 	})
+	t.Run("empty separator rejected", func(t *testing.T) {
+		if _, _, err := cliparams.SplitAssignment("a:1", cliparams.WithSeparator("")); err == nil {
+			t.Error("want error for empty separator, got nil")
+		}
+	})
 	t.Run("per-name error context", func(t *testing.T) {
 		_, err := cliparams.ParseAssignments([]string{`bad:(`})
 		if err == nil || !strings.Contains(err.Error(), `"bad"`) {
@@ -133,6 +138,12 @@ func TestParseMap(t *testing.T) {
 	}
 }
 
+func TestParseMapEmptyName(t *testing.T) {
+	if _, err := cliparams.ParseMap(map[string]string{"": "1"}); err == nil {
+		t.Error("want error for empty parameter name, got nil")
+	}
+}
+
 func TestStatementParams(t *testing.T) {
 	params := map[string]spanner.GenericColumnValue{
 		"a": gcvOf(typector.CodeToSimpleType(sppb.TypeCode_INT64), structpb.NewStringValue("1")),
@@ -143,5 +154,9 @@ func TestStatementParams(t *testing.T) {
 	}
 	if _, ok := stmt.Params["a"].(spanner.GenericColumnValue); !ok {
 		t.Errorf("Params[a] = %T, want spanner.GenericColumnValue", stmt.Params["a"])
+	}
+
+	if got := cliparams.StatementParams(nil); got != nil {
+		t.Errorf("StatementParams(nil) = %v, want nil", got)
 	}
 }

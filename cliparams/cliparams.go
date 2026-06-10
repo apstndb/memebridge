@@ -33,7 +33,9 @@ type config struct {
 func newConfig(opts []Option) config {
 	cfg := config{separator: ":"}
 	for _, opt := range opts {
-		opt(&cfg)
+		if opt != nil {
+			opt(&cfg)
+		}
 	}
 	return cfg
 }
@@ -60,6 +62,9 @@ func WithBareTypeAsNull() Option {
 // be non-empty; the value may contain further separator occurrences.
 func SplitAssignment(arg string, opts ...Option) (name, value string, err error) {
 	cfg := newConfig(opts)
+	if cfg.separator == "" {
+		return "", "", fmt.Errorf("cliparams: separator must not be empty")
+	}
 	name, value, found := strings.Cut(arg, cfg.separator)
 	if !found {
 		return "", "", fmt.Errorf("cliparams: assignment %q does not contain separator %q", arg, cfg.separator)
@@ -123,6 +128,9 @@ func ParseAssignments(args []string, opts ...Option) (map[string]spanner.Generic
 func ParseMap(values map[string]string, opts ...Option) (map[string]spanner.GenericColumnValue, error) {
 	params := make(map[string]spanner.GenericColumnValue, len(values))
 	for name, value := range values {
+		if name == "" {
+			return nil, fmt.Errorf("cliparams: empty parameter name")
+		}
 		gcv, err := ParseValue(value, opts...)
 		if err != nil {
 			return nil, fmt.Errorf("cliparams: parameter %q: %w", name, err)
@@ -136,6 +144,9 @@ func ParseMap(values map[string]string, opts ...Option) (map[string]spanner.Gene
 // [cloud.google.com/go/spanner.Statement] Params. Values stay
 // [spanner.GenericColumnValue] (the client supports it directly).
 func StatementParams(params map[string]spanner.GenericColumnValue) map[string]any {
+	if params == nil {
+		return nil
+	}
 	out := make(map[string]any, len(params))
 	for name, gcv := range params {
 		out[name] = gcv
