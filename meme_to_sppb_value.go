@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/apstndb/spantype"
 	"github.com/apstndb/spantype/typector"
 	"github.com/apstndb/spanvalue/gcvctor"
 	"github.com/cloudspannerecosystem/memefish/char"
@@ -17,7 +18,6 @@ import (
 	sppb "cloud.google.com/go/spanner/apiv1/spannerpb"
 	"github.com/cloudspannerecosystem/memefish/ast"
 	"github.com/google/uuid"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -208,8 +208,8 @@ func coerceToExpectedType(
 	gcv spanner.GenericColumnValue,
 	expr ast.Expr,
 ) (spanner.GenericColumnValue, error) {
-	if proto.Equal(gcv.Type, expectedType) {
-		return spanner.GenericColumnValue{Type: expectedType, Value: gcv.Value}, nil
+	if retyped, err := gcvctor.WithExactType(expectedType, gcv); err == nil {
+		return retyped, nil
 	}
 	if isNullGCV(gcv) && isUntypedNullLiteral(expr) {
 		return gcvctor.NullOf(expectedType), nil
@@ -352,7 +352,7 @@ func MemefishExprToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
 	switch e := expr.(type) {
 	case *ast.NullLiteral:
 		// emulate behavior of query parameter with unknown type as INT64
-		return gcvctor.NullOf(typector.Int64()), nil
+		return gcvctor.NullFromCode(sppb.TypeCode_INT64), nil
 	case *ast.BoolLiteral:
 		return gcvctor.BoolValue(e.Value), nil
 	case *ast.IntLiteral:
@@ -513,7 +513,7 @@ func inferArrayElementType(exprs []ast.Expr, gcvs []spanner.GenericColumnValue) 
 			continue
 		}
 		typ := gcvs[i].Type
-		if !equivalentSpannerTypes(first, typ) {
+		if !spantype.EquivalentTypes(first, typ) {
 			allSame = false
 		}
 		if typ.GetCode() == sppb.TypeCode_STRING {
@@ -523,7 +523,7 @@ func inferArrayElementType(exprs []ast.Expr, gcvs []spanner.GenericColumnValue) 
 			nonStringType = typ
 			continue
 		}
-		if !equivalentSpannerTypes(nonStringType, typ) {
+		if !spantype.EquivalentTypes(nonStringType, typ) {
 			nonStringType = nil
 			break
 		}
@@ -616,9 +616,9 @@ func arrayLiteralValueOf(
 		// rely on.
 		return spanner.GenericColumnValue{
 			Type: typector.ElemTypeToArrayType(elemType),
-			Value: structpb.NewListValue(&structpb.ListValue{Values: lo.Map(gcvs, func(gcv spanner.GenericColumnValue, _ int) *structpb.Value {
-				return gcvToValue(gcv)
-			})}),
+			Value: structpb.NewListValue(&structpb.ListValue{
+				Values: gcvArrayWireValues(gcvs),
+			}),
 		}, nil
 	}
 
@@ -642,14 +642,22 @@ func coerceArrayElementsStrict(
 }
 
 func coerceArrayElements(elemType *sppb.Type, gcvs []spanner.GenericColumnValue) ([]spanner.GenericColumnValue, error) {
+	normalized, err := gcvctor.NormalizeArrayElements(elemType, gcvs...)
+	if err == nil {
+		return normalized, nil
+	}
+	if !errors.Is(err, gcvctor.ErrTypeMismatch) {
+		return nil, err
+	}
+
 	coerced := make([]spanner.GenericColumnValue, len(gcvs))
 	for i, gcv := range gcvs {
 		if isNullGCV(gcv) {
 			coerced[i] = gcvctor.NullOf(elemType)
 			continue
 		}
-		if equivalentSpannerTypes(gcv.Type, elemType) {
-			coerced[i] = spanner.GenericColumnValue{Type: elemType, Value: gcv.Value}
+		if retyped, err := gcvctor.WithEquivalentType(elemType, gcv); err == nil {
+			coerced[i] = retyped
 			continue
 		}
 		elem, err := coerceArrayElement(elemType, gcv)

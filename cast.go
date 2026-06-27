@@ -15,10 +15,11 @@ import (
 	"cloud.google.com/go/civil"
 	"cloud.google.com/go/spanner"
 	sppb "cloud.google.com/go/spanner/apiv1/spannerpb"
+	"github.com/apstndb/spantype"
+	"github.com/apstndb/spanvalue"
 	"github.com/apstndb/spanvalue/gcvctor"
 	"github.com/cloudspannerecosystem/memefish/ast"
 	"github.com/google/uuid"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -90,8 +91,8 @@ func memefishCastExprToGCV(cast *ast.CastExpr) (spanner.GenericColumnValue, erro
 func castGCV(src spanner.GenericColumnValue, destType *sppb.Type, exprSQL string) (spanner.GenericColumnValue, error) {
 	srcCode := src.Type.GetCode()
 	destCode := destType.GetCode()
-	if equivalentSpannerTypes(src.Type, destType) {
-		return spanner.GenericColumnValue{Type: destType, Value: src.Value}, nil
+	if retyped, err := gcvctor.WithEquivalentType(destType, src); err == nil {
+		return retyped, nil
 	}
 	if isNullGCV(src) {
 		return gcvctor.NullOf(destType), nil
@@ -500,17 +501,10 @@ func castGCVToArray(src spanner.GenericColumnValue, destType *sppb.Type, exprSQL
 	// https://docs.cloud.google.com/spanner/docs/reference/standard-sql/conversion_rules
 	// https://github.com/google/googlesql/blob/36dd14aa0657ea299725504bc0f938732f58f380/googlesql/public/cast.h#L45-L66
 	// https://github.com/google/googlesql/blob/36dd14aa0657ea299725504bc0f938732f58f380/googlesql/public/cast.cc#L282-L289
-	if !equivalentSpannerTypes(src.Type, destType) {
+	if !spantype.EquivalentTypes(src.Type, destType) {
 		return zeroGCV, unsupportedArrayCastError(src.Type, destType, exprSQL)
 	}
-	return spanner.GenericColumnValue{Type: destType, Value: src.Value}, nil
-}
-
-func gcvToValue(gcv spanner.GenericColumnValue) *structpb.Value {
-	if gcv.Value == nil {
-		return structpb.NewNullValue()
-	}
-	return gcv.Value
+	return gcvctor.WithEquivalentType(destType, src)
 }
 
 func castGCVToStruct(src spanner.GenericColumnValue, destType *sppb.Type, exprSQL string) (spanner.GenericColumnValue, error) {
@@ -550,7 +544,7 @@ func castGCVToStruct(src spanner.GenericColumnValue, destType *sppb.Type, exprSQ
 		if err != nil {
 			return zeroGCV, fmt.Errorf("cannot cast struct field %d from %v to %v: %w", i, srcFields[i].Type.GetCode(), destFields[i].Type.GetCode(), err)
 		}
-		coerced[i] = gcvToValue(casted)
+		coerced[i] = gcvToProtoValue(casted)
 	}
 	return spanner.GenericColumnValue{
 		Type:  destType,
@@ -559,11 +553,7 @@ func castGCVToStruct(src spanner.GenericColumnValue, destType *sppb.Type, exprSQ
 }
 
 func isNullGCV(gcv spanner.GenericColumnValue) bool {
-	if gcv.Value == nil {
-		return true
-	}
-	_, ok := gcv.Value.GetKind().(*structpb.Value_NullValue)
-	return ok
+	return spanvalue.IsNull(gcv)
 }
 
 func boolFromGCV(gcv spanner.GenericColumnValue) (bool, error) {
@@ -983,44 +973,6 @@ func safeSubInt64(a, b int64) (int64, bool) {
 		return 0, false
 	}
 	return a - b, true
-}
-
-func equivalentSpannerTypes(a, b *sppb.Type) bool {
-	if a == nil || b == nil {
-		return a == nil && b == nil
-	}
-	if a.GetCode() != b.GetCode() {
-		return false
-	}
-	switch a.GetCode() {
-	case sppb.TypeCode_ARRAY:
-		return equivalentSpannerTypes(a.GetArrayElementType(), b.GetArrayElementType())
-	case sppb.TypeCode_STRUCT:
-		aStruct := a.GetStructType()
-		bStruct := b.GetStructType()
-		if aStruct == nil || bStruct == nil {
-			return aStruct == nil && bStruct == nil
-		}
-		aFields := aStruct.GetFields()
-		bFields := bStruct.GetFields()
-		if len(aFields) != len(bFields) {
-			return false
-		}
-		for i := range aFields {
-			if aFields[i] == nil || bFields[i] == nil {
-				if aFields[i] != bFields[i] {
-					return false
-				}
-				continue
-			}
-			if !equivalentSpannerTypes(aFields[i].GetType(), bFields[i].GetType()) {
-				return false
-			}
-		}
-		return true
-	default:
-		return proto.Equal(a, b)
-	}
 }
 
 func float32ValueFromFloat64(v float64) (spanner.GenericColumnValue, error) {

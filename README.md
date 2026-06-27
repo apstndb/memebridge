@@ -10,6 +10,7 @@ The [`cliparams`](https://pkg.go.dev/github.com/apstndb/memebridge/cliparams) su
 
 - `memebridge v0.5.0` requires `github.com/apstndb/spanvalue v0.2.x`.
 - `memebridge v0.6.0` requires `github.com/apstndb/spanvalue v0.3.x`.
+- `memebridge v0.6.1` and later require Go 1.24+, `github.com/apstndb/spanvalue v0.8.x`, and `github.com/cloudspannerecosystem/memefish v0.7.x`.
 
 Temporal casts use Cloud Spanner's default time zone, `America/Los_Angeles`.
 By default, memebridge relies on the runtime's system zoneinfo; build with the `memebridge_tzdata` tag to embed Go's IANA tzdata for minimal runtimes that do not provide zoneinfo.
