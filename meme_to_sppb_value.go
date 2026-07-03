@@ -37,16 +37,16 @@ var (
 	zeroGCV            spanner.GenericColumnValue
 )
 
-func typelessStructLiteralArgToNameWithGCV(arg ast.TypelessStructLiteralArg) (string, spanner.GenericColumnValue, error) {
+func typelessStructLiteralArgToNameWithGCV(arg ast.TypelessStructLiteralArg, o evalOptions) (string, spanner.GenericColumnValue, error) {
 	switch a := arg.(type) {
 	case *ast.ExprArg:
-		gcv, err := MemefishExprToGCV(a.Expr)
+		gcv, err := memefishExprToGCV(a.Expr, o)
 		if err != nil {
 			return "", zeroGCV, err
 		}
 		return "", gcv, nil
 	case *ast.Alias:
-		gcv, err := MemefishExprToGCV(a.Expr)
+		gcv, err := memefishExprToGCV(a.Expr, o)
 		if err != nil {
 			return "", zeroGCV, err
 		}
@@ -56,13 +56,13 @@ func typelessStructLiteralArgToNameWithGCV(arg ast.TypelessStructLiteralArg) (st
 	}
 }
 
-func astStructLiteralsToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
+func astStructLiteralsToGCV(expr ast.Expr, o evalOptions) (spanner.GenericColumnValue, error) {
 	var names []string
 	var gcvs []spanner.GenericColumnValue
 	switch e := expr.(type) {
 	case *ast.TypelessStructLiteral:
 		for _, value := range e.Values {
-			name, gcv, err := typelessStructLiteralArgToNameWithGCV(value)
+			name, gcv, err := typelessStructLiteralArgToNameWithGCV(value, o)
 			if err != nil {
 				return zeroGCV, err
 			}
@@ -76,7 +76,7 @@ func astStructLiteralsToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
 		}
 
 		gcvs, err = lo.MapErr(astValues, func(expr ast.Expr, _ int) (spanner.GenericColumnValue, error) {
-			return MemefishExprToGCV(expr)
+			return memefishExprToGCV(expr, o)
 		})
 		if err != nil {
 			return zeroGCV, err
@@ -84,7 +84,7 @@ func astStructLiteralsToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
 
 		names = slices.Repeat([]string{""}, len(gcvs))
 	case *ast.TypedStructLiteral:
-		return typedStructLiteralToGCV(e)
+		return typedStructLiteralToGCV(e, o)
 	default:
 		return zeroGCV, fmt.Errorf("expr is not struct literal: %v", e)
 	}
@@ -92,7 +92,7 @@ func astStructLiteralsToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
 	return gcvctor.StructValueOf(names, gcvs)
 }
 
-func typedStructLiteralToGCV(expr *ast.TypedStructLiteral) (spanner.GenericColumnValue, error) {
+func typedStructLiteralToGCV(expr *ast.TypedStructLiteral, o evalOptions) (spanner.GenericColumnValue, error) {
 	if len(expr.Fields) != len(expr.Values) {
 		return zeroGCV, fmt.Errorf("typed struct literal has %d fields but %d values", len(expr.Fields), len(expr.Values))
 	}
@@ -107,7 +107,7 @@ func typedStructLiteralToGCV(expr *ast.TypedStructLiteral) (spanner.GenericColum
 		if err != nil {
 			return zeroGCV, err
 		}
-		coerced, err := memefishExprToGCVWithExpectedType(fieldType, expr.Values[i])
+		coerced, err := memefishExprToGCVWithExpectedType(fieldType, expr.Values[i], o)
 		if err != nil {
 			return zeroGCV, fmt.Errorf("cannot coerce typed struct field %d (%s): %w", i, expr.Values[i].SQL(), err)
 		}
@@ -117,9 +117,9 @@ func typedStructLiteralToGCV(expr *ast.TypedStructLiteral) (spanner.GenericColum
 	return gcvctor.StructValueOf(names, gcvs)
 }
 
-func memefishExprToGCVWithExpectedType(expectedType *sppb.Type, expr ast.Expr) (spanner.GenericColumnValue, error) {
+func memefishExprToGCVWithExpectedType(expectedType *sppb.Type, expr ast.Expr, o evalOptions) (spanner.GenericColumnValue, error) {
 	if expectedType == nil {
-		return MemefishExprToGCV(expr)
+		return memefishExprToGCV(expr, o)
 	}
 
 	unwrapped := unwrapParenExpr(expr)
@@ -128,35 +128,35 @@ func memefishExprToGCVWithExpectedType(expectedType *sppb.Type, expr ast.Expr) (
 		array, ok := unwrapped.(*ast.ArrayLiteral)
 		if ok {
 			if array.Type != nil {
-				gcv, err := arrayLiteralToGCVStrict(array, nil)
+				gcv, err := arrayLiteralToGCVStrict(array, nil, o)
 				if err != nil {
 					return zeroGCV, err
 				}
 				return castGCV(gcv, expectedType, expr.SQL())
 			}
-			return arrayLiteralToGCVStrict(array, expectedType.GetArrayElementType())
+			return arrayLiteralToGCVStrict(array, expectedType.GetArrayElementType(), o)
 		}
 	case sppb.TypeCode_STRUCT:
 		switch e := unwrapped.(type) {
 		case *ast.TypedStructLiteral:
-			gcv, err := typedStructLiteralToGCV(e)
+			gcv, err := typedStructLiteralToGCV(e, o)
 			if err != nil {
 				return zeroGCV, err
 			}
 			return castGCV(gcv, expectedType, expr.SQL())
 		case *ast.TypelessStructLiteral, *ast.TupleStructLiteral:
-			return structLiteralToGCVWithExpectedType(expectedType, unwrapped)
+			return structLiteralToGCVWithExpectedType(expectedType, unwrapped, o)
 		}
 	}
 
-	gcv, err := MemefishExprToGCV(expr)
+	gcv, err := memefishExprToGCV(expr, o)
 	if err != nil {
 		return zeroGCV, err
 	}
 	return coerceToExpectedType(expectedType, gcv, expr)
 }
 
-func structLiteralToGCVWithExpectedType(expectedType *sppb.Type, expr ast.Expr) (spanner.GenericColumnValue, error) {
+func structLiteralToGCVWithExpectedType(expectedType *sppb.Type, expr ast.Expr, o evalOptions) (spanner.GenericColumnValue, error) {
 	structType := expectedType.GetStructType()
 	if structType == nil {
 		return zeroGCV, fmt.Errorf("malformed expected STRUCT type")
@@ -176,7 +176,7 @@ func structLiteralToGCVWithExpectedType(expectedType *sppb.Type, expr ast.Expr) 
 		if field == nil || field.Type == nil {
 			return zeroGCV, fmt.Errorf("expected STRUCT type has nil field at index %d", i)
 		}
-		gcv, err := memefishExprToGCVWithExpectedType(field.Type, values[i])
+		gcv, err := memefishExprToGCVWithExpectedType(field.Type, values[i], o)
 		if err != nil {
 			return zeroGCV, fmt.Errorf("cannot coerce struct field %d (%s): %w", i, values[i].SQL(), err)
 		}
@@ -359,10 +359,14 @@ func extractValues(expr ast.Expr) ([]ast.Expr, error) {
 // GenericColumnValue. It handles literals, STRUCT and ARRAY literals, CAST and
 // SAFE_CAST, INTERVAL literals, and PENDING_COMMIT_TIMESTAMP().
 //
-// Unsupported expression kinds return an error. Array literals may use a
-// permissive wire fallback when elements cannot be coerced to the declared or
-// inferred element type; see package documentation.
-func MemefishExprToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
+// Unsupported expression kinds return an error. By default, ARRAY<T> literals
+// require elements to coerce to T; use [WithLegacyArrayWirePassthrough] to
+// restore pre-v0.7 permissive wire preservation on coercion failure.
+func MemefishExprToGCV(expr ast.Expr, opts ...EvalOption) (spanner.GenericColumnValue, error) {
+	return memefishExprToGCV(expr, applyEvalOptions(opts))
+}
+
+func memefishExprToGCV(expr ast.Expr, o evalOptions) (spanner.GenericColumnValue, error) {
 	switch e := expr.(type) {
 	case *ast.NullLiteral:
 		// emulate behavior of query parameter with unknown type as INT64
@@ -394,17 +398,17 @@ func MemefishExprToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
 	case *ast.JSONLiteral:
 		return gcvctor.StringBasedValueFromCode(sppb.TypeCode_JSON, e.Value.Value), nil
 	case *ast.ArrayLiteral:
-		return arrayLiteralToGCV(e, nil)
+		return arrayLiteralToGCVWithFallback(e, nil, o.legacyArrayWirePassthrough, o)
 	case *ast.TypelessStructLiteral,
 		*ast.TupleStructLiteral,
 		*ast.TypedStructLiteral:
-		return astStructLiteralsToGCV(e)
+		return astStructLiteralsToGCV(e, o)
 	case *ast.IntervalLiteralSingle, *ast.IntervalLiteralRange:
 		return astIntervalLiteralsToGCV(e)
 	case *ast.ParenExpr:
-		return MemefishExprToGCV(e.Expr)
+		return memefishExprToGCV(e.Expr, o)
 	case *ast.CastExpr:
-		return memefishCastExprToGCV(e)
+		return memefishCastExprToGCV(e, o)
 	case *ast.CallExpr:
 		if len(e.Func.Idents) == 1 && char.EqualFold(e.Func.Idents[0].Name, "PENDING_COMMIT_TIMESTAMP") {
 			return gcvctor.StringBasedValueFromCode(sppb.TypeCode_TIMESTAMP, commitTimestampPlaceholderString), nil
@@ -416,24 +420,19 @@ func MemefishExprToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
 	return zeroGCV, fmt.Errorf("%w: %s", ErrUnsupportedExpr, expr.SQL())
 }
 
-func arrayLiteralToGCV(
-	expr *ast.ArrayLiteral,
-	expectedElemType *sppb.Type,
-) (spanner.GenericColumnValue, error) {
-	return arrayLiteralToGCVWithFallback(expr, expectedElemType, true)
-}
-
 func arrayLiteralToGCVStrict(
 	expr *ast.ArrayLiteral,
 	expectedElemType *sppb.Type,
+	o evalOptions,
 ) (spanner.GenericColumnValue, error) {
-	return arrayLiteralToGCVWithFallback(expr, expectedElemType, false)
+	return arrayLiteralToGCVWithFallback(expr, expectedElemType, false, o)
 }
 
 func arrayLiteralToGCVWithFallback(
 	expr *ast.ArrayLiteral,
 	expectedElemType *sppb.Type,
 	allowFallback bool,
+	o evalOptions,
 ) (spanner.GenericColumnValue, error) {
 	// An explicit ARRAY<T> annotation takes precedence; otherwise use a local
 	// expected element type if one is available, then fall back to inference.
@@ -445,7 +444,7 @@ func arrayLiteralToGCVWithFallback(
 			return zeroGCV, err
 		}
 	}
-	gcvs, err := arrayLiteralElementsToGCVs(expr.Values, elemType, allowFallback)
+	gcvs, err := arrayLiteralElementsToGCVs(expr.Values, elemType, allowFallback, o)
 	if err != nil {
 		return zeroGCV, err
 	}
@@ -463,17 +462,18 @@ func arrayLiteralElementsToGCVs(
 	values []ast.Expr,
 	expectedElemType *sppb.Type,
 	allowFallback bool,
+	o evalOptions,
 ) ([]spanner.GenericColumnValue, error) {
 	if expectedElemType != nil {
 		gcvs, err := lo.MapErr(values, func(value ast.Expr, _ int) (spanner.GenericColumnValue, error) {
-			return memefishExprToGCVWithExpectedType(expectedElemType, value)
+			return memefishExprToGCVWithExpectedType(expectedElemType, value, o)
 		})
 		if err == nil || !allowFallback {
 			return gcvs, err
 		}
 	}
 	return lo.MapErr(values, func(value ast.Expr, _ int) (spanner.GenericColumnValue, error) {
-		return MemefishExprToGCV(value)
+		return memefishExprToGCV(value, o)
 	})
 }
 

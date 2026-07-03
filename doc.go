@@ -33,10 +33,9 @@
 // "spanner.commit_timestamp()". Downstream Spanner clients interpret this
 // sentinel; memebridge preserves it through TIMESTAMP→STRING casts.
 //
-// Array literals use a permissive fallback when element values cannot be coerced
-// to the declared or inferred element type: the resulting GCV is typed as
-// ARRAY<T> but may retain original element wire values that do not match T.
-// This preserves pre-v0.3 behavior for callers that defer validation to the
-// server. Strict coercion is used on expected-type paths (typed STRUCT fields,
-// ARRAY<T> annotations).
+// Array literals require elements to coerce to the declared or inferred element
+// type by default. Use [WithLegacyArrayWirePassthrough] on [MemefishExprToGCV] or
+// [ParseExpr] to restore pre-v0.7 behavior that preserves original element wire
+// values when coercion fails. Strict coercion is always used on expected-type
+// paths (typed STRUCT fields, ARRAY<T> annotations in typed contexts).
 package memebridge

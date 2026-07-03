@@ -295,7 +295,7 @@ func TestParseExpr(t *testing.T) {
 			)),
 		},
 		{
-			`[STRUCT(1 AS a), STRUCT(2 AS b)]`,
+			`[STRUCT(1 AS a), STRUCT(2 AS a)]`,
 			must(gcvctor.ArrayValueOf(
 				typector.NameTypeToStructType("a", typector.Int64()),
 				must(gcvctor.StructValueOf(
@@ -654,6 +654,8 @@ func TestParseExpr_InvalidCastReturnsError(t *testing.T) {
 		`CAST([NUMERIC "1.5"] AS ARRAY<FLOAT64>)`,
 		`CAST([1, NULL] AS ARRAY<FLOAT64>)`,
 		`CAST(STRUCT(1 AS foo, 2 AS bar) AS STRUCT<foo INT64>)`,
+		`[STRUCT(1 AS a), STRUCT(2 AS b)]`,
+		`ARRAY<INT64>[1, TRUE]`,
 	}
 	for _, input := range tests {
 		t.Run(input, func(t *testing.T) {
