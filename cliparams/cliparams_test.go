@@ -57,6 +57,15 @@ func TestParseValue(t *testing.T) {
 			t.Error("ParseValue without WithBareTypeAsNull: want error, got nil")
 		}
 	})
+	t.Run("bare type rejects trailing garbage", func(t *testing.T) {
+		_, err := cliparams.ParseValue(`INT64 garbage`, cliparams.WithBareTypeAsNull())
+		if err == nil {
+			t.Fatal("want error for trailing garbage after bare type, got nil")
+		}
+		if !strings.Contains(err.Error(), "eof") && !strings.Contains(err.Error(), "EOF") {
+			t.Errorf("want EOF parse error, got %v", err)
+		}
+	})
 	t.Run("invalid expression", func(t *testing.T) {
 		if _, err := cliparams.ParseValue(`(`); err == nil {
 			t.Error("want error, got nil")
