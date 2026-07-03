@@ -24,8 +24,16 @@ import (
 const commitTimestampPlaceholderString = "spanner.commit_timestamp()"
 
 var (
+	// ErrCannotInferArrayElementType is returned when an untyped array literal
+	// has no inferrable element type.
 	ErrCannotInferArrayElementType = errors.New("cannot infer element type for array literal without explicit type")
-	zeroGCV                        spanner.GenericColumnValue
+	// ErrUnsupportedExpr is returned when MemefishExprToGCV encounters an
+	// expression kind it does not evaluate.
+	ErrUnsupportedExpr = errors.New("unsupported expression")
+	// ErrUnsupportedType is returned when MemefishTypeToSpannerpbType encounters a
+	// type kind it does not support.
+	ErrUnsupportedType = errors.New("unsupported type")
+	zeroGCV            spanner.GenericColumnValue
 )
 
 func typelessStructLiteralArgToNameWithGCV(arg ast.TypelessStructLiteralArg) (string, spanner.GenericColumnValue, error) {
@@ -399,7 +407,7 @@ func MemefishExprToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
 	default:
 		// break
 	}
-	return zeroGCV, fmt.Errorf("not implemented: %s", expr.SQL())
+	return zeroGCV, fmt.Errorf("%w: %s", ErrUnsupportedExpr, expr.SQL())
 }
 
 func arrayLiteralToGCV(

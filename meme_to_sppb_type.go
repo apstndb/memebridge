@@ -82,6 +82,6 @@ func MemefishTypeToSpannerpbType(typ ast.Type) (*sppb.Type, error) {
 		}
 		return nil, fmt.Errorf("not known whether the named type is STRUCT or ENUM: %s", t.SQL())
 	default:
-		return nil, fmt.Errorf("not implemented: %s", t.SQL())
+		return nil, fmt.Errorf("%w: %s", ErrUnsupportedType, t.SQL())
 	}
 }
