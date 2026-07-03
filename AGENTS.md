@@ -23,6 +23,21 @@ There is no standalone binary build target; this project is validated through te
 - `meme_to_sppb_type.go` maps `memefish` types to `spannerpb.Type`; coercion and cast logic relies on those exact type objects.
 - `interval.go` contains INTERVAL literal parsing and normalization helpers shared by expression conversion and cast behavior.
 
+## Forward compatibility
+
+When `type.proto` gains a `TypeCode` before memefish, spanvalue, or memebridge catch up, each layer should **fail closed** with **explicit errors** — not silent coercion and not `TYPE_CODE_UNSPECIFIED` as a stand-in for "unsupported".
+
+| Layer | Responsibility when the type is unknown |
+|-------|----------------------------------------|
+| **memefish** | Parse-time failure for unknown type syntax or literal forms |
+| **spantype** | Building complex `spannerpb.Type` trees may lag; manual proto types still work |
+| **spanvalue** | Dedicated constructors may be missing; scalar wire passthrough may still work for transport-only paths |
+| **memebridge** | Explicit error on type mapping, evaluation, or CAST — no guessing |
+
+Upper layers are stricter. Lower layers may be permissive only when shuttling already-valid wire without interpreting it. In memebridge: unknown scalar names error in `meme_to_sppb_type.go`; unhandled expressions return `ErrUnsupportedExpr`; unhandled cast pairs return `ErrUnsupportedCast`; return `ParseExpr` / `ParseType` errors from memefish unchanged.
+
+**Anti-patterns (all layers):** mapping unknown `TypeCode` to `TYPE_CODE_UNSPECIFIED`; silent coercion to `INT64` or `STRING` (except the documented bare-`NULL` → typed `INT64` NULL Spanner parity rule); unchecked `WithType` on semantic paths to hide missing support; assuming a `spannerpb` `go.mod` bump alone enables end-user SQL for a new type.
+
 ## Coding Style & Naming Conventions
 
 Follow standard Go formatting with `gofmt` and idiomatic imports. Use tabs for indentation as produced by `gofmt`. Exported identifiers use `PascalCase` (`MemefishExprToGCV`); internal helpers use `camelCase` (`astStructLiteralsToGCV`). Prefer precise, behavior-oriented filenames and keep related tests in matching `*_test.go` files. Keep functions small and return explicit errors instead of hiding failures.
