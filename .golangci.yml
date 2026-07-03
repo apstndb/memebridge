@@ -1,0 +1,4 @@
+# Pinned for CI golangci-lint v2.11.4 (see .github/workflows/go.yml).
+version: "2"
+linters:
+  default: standard

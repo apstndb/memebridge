@@ -18,5 +18,13 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
+      - name: Vet
+        run: go vet ./...
+      - name: Build with tzdata tag
+        run: go build -tags memebridge_tzdata ./...
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.11.4
       - name: Test
-        run: go test -v ./...
+        run: go test -race -v ./...
