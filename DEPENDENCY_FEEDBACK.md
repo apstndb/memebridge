@@ -268,6 +268,7 @@ When Spanner adds a type before memefish:
 | spanvalue v0.8.x adoption | Released in memebridge v0.6.2 |
 | memefish v0.7.0 bump | Released in memebridge v0.6.2 |
 | `gcv_helpers.go` prototypes | Local only; delete when upstream APIs land |
-| File spanvalue issues (G1, G4–G5, S1–S4) | Filed — see spanvalue issues linked from memebridge tracker issues |
+| File spanvalue issues (G1, G4–G5, S1–S4) | Filed: [spanvalue#261](https://github.com/apstndb/spanvalue/issues/261), [spanvalue#262](https://github.com/apstndb/spanvalue/issues/262) |
+| memebridge tracker issues from review | #35–#42 (see memebridge issues) |
 | File memefish documentation issue | Not filed (memefish upstream) |
 | gcvctor G2/G3 (`WithEquivalentType`, `WithExactType`) | Resolved in spanvalue v0.8.x |
