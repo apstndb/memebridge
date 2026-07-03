@@ -19,7 +19,9 @@ func WithLegacyArrayWirePassthrough() EvalOption {
 func applyEvalOptions(opts []EvalOption) evalOptions {
 	var o evalOptions
 	for _, opt := range opts {
-		opt(&o)
+		if opt != nil {
+			opt(&o)
+		}
 	}
 	return o
 }

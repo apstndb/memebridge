@@ -215,7 +215,7 @@ func coerceToExpectedType(
 	gcv spanner.GenericColumnValue,
 	expr ast.Expr,
 ) (spanner.GenericColumnValue, error) {
-	if retyped, err := gcvctor.WithExactType(expectedType, gcv); err == nil {
+	if retyped, err := gcvctor.WithEquivalentType(expectedType, gcv); err == nil {
 		return retyped, nil
 	}
 	if isNullGCV(gcv) && isUntypedNullLiteral(expr) {
