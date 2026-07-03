@@ -38,7 +38,7 @@ func formatNumericForInterval(r *big.Rat) string {
 	return strings.TrimRight(spanner.NumericString(r), "0")
 }
 
-func toRFC8601Duration(i int64, part ast.DateTimePart) (string, error) {
+func toISO8601Duration(i int64, part ast.DateTimePart) (string, error) {
 	if i == 0 {
 		return "P0Y", nil
 	}
@@ -152,7 +152,7 @@ func astIntervalLiteralsToInterval(expr ast.Expr) (spanner.Interval, error) {
 			return zero, err
 		}
 
-		durationString, err := toRFC8601Duration(i, e.DateTimePart)
+		durationString, err := toISO8601Duration(i, e.DateTimePart)
 		if err != nil {
 			return zero, err
 		}

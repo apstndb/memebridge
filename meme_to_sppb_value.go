@@ -65,15 +65,13 @@ func astStructLiteralsToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
 			if err != nil {
 				return zeroGCV, err
 			}
-			// fields = append(fields, typector.NameTypeToStructTypeField(name, gcv.Type))
-			// values = append(values, gcv.Value)
 			names = append(names, name)
 			gcvs = append(gcvs, gcv)
 		}
 	case *ast.TupleStructLiteral:
 		astValues, err := extractValues(e)
 		if err != nil {
-			return zeroGCV, errors.New("invalid state")
+			return zeroGCV, fmt.Errorf("tuple struct literal: %w", err)
 		}
 
 		gcvs, err = lo.MapErr(astValues, func(expr ast.Expr, _ int) (spanner.GenericColumnValue, error) {

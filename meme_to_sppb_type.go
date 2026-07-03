@@ -74,6 +74,8 @@ func MemefishTypeToSpannerpbType(typ ast.Type) (*sppb.Type, error) {
 
 		return typector.StructTypeFieldsToStructType(fields), nil
 	case *ast.NamedType:
+		// UUID is a NamedType in memefish, not a ScalarTypeName, so it is
+		// handled here rather than in ScalarTypeNameToTypeCodeMap.
 		if len(t.Path) == 1 {
 			switch strings.ToUpper(t.Path[0].Name) {
 			case "UUID":
