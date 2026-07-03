@@ -33,7 +33,9 @@ const (
 )
 
 var (
-	errUnsupportedCast = errors.New("unsupported cast")
+	// ErrUnsupportedCast is returned when CAST cannot convert between the
+	// source and destination Spanner types.
+	ErrUnsupportedCast = errors.New("unsupported cast")
 
 	numericScaleFactor = pow10Int(spanner.NumericScaleDigits)
 	maxScaledNumeric   = new(big.Int).Sub(pow10Int(spanner.NumericPrecisionDigits), big.NewInt(1))
@@ -82,7 +84,7 @@ func memefishCastExprToGCV(cast *ast.CastExpr) (spanner.GenericColumnValue, erro
 	if err == nil {
 		return gcv, nil
 	}
-	if cast.Safe && !errors.Is(err, errUnsupportedCast) {
+	if cast.Safe && !errors.Is(err, ErrUnsupportedCast) {
 		return gcvctor.NullOf(destType), nil
 	}
 	return zeroGCV, err
@@ -1071,7 +1073,7 @@ func formatSpannerFloat(v float64, bitSize int) string {
 }
 
 func unsupportedCastError(srcCode, destCode sppb.TypeCode, exprSQL string) error {
-	err := fmt.Errorf("%w from %v to %v", errUnsupportedCast, srcCode, destCode)
+	err := fmt.Errorf("%w from %v to %v", ErrUnsupportedCast, srcCode, destCode)
 	if exprSQL != "" {
 		return fmt.Errorf("%w: %s", err, exprSQL)
 	}
@@ -1089,7 +1091,7 @@ func unsupportedArrayCastError(srcType, destType *sppb.Type, exprSQL string) err
 	if destElemType != nil {
 		destElemCode = destElemType.GetCode()
 	}
-	err := fmt.Errorf("%w from ARRAY<%v> to ARRAY<%v>", errUnsupportedCast, srcElemCode, destElemCode)
+	err := fmt.Errorf("%w from ARRAY<%v> to ARRAY<%v>", ErrUnsupportedCast, srcElemCode, destElemCode)
 	if exprSQL != "" {
 		return fmt.Errorf("%w: %s", err, exprSQL)
 	}
