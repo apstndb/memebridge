@@ -9,6 +9,12 @@ import (
 	"github.com/cloudspannerecosystem/memefish/ast"
 )
 
+// ScalarTypeNameToTypeCodeMap maps memefish scalar type names to Spanner
+// TypeCode values. UUID is not included because memefish models it as a
+// NamedType, not a ScalarTypeName; see MemefishTypeToSpannerpbType.
+//
+// Treat this map as read-only; mutating it changes conversion behavior
+// process-wide.
 var ScalarTypeNameToTypeCodeMap = map[ast.ScalarTypeName]sppb.TypeCode{
 	ast.BoolTypeName:      sppb.TypeCode_BOOL,
 	ast.Int64TypeName:     sppb.TypeCode_INT64,
@@ -47,6 +53,9 @@ func memefishStructFieldToStructTypeField(field *ast.StructField) (*sppb.StructT
 	return typector.NameTypeToStructTypeField(fieldNameOrEmpty(field), t), nil
 }
 
+// MemefishTypeToSpannerpbType maps a memefish ast.Type to spannerpb.Type.
+// Named types other than UUID require disambiguation between STRUCT and ENUM
+// and currently return an error until descriptor support is added.
 func MemefishTypeToSpannerpbType(typ ast.Type) (*sppb.Type, error) {
 	switch t := typ.(type) {
 	case *ast.SimpleType:

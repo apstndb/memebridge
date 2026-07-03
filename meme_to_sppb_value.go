@@ -25,7 +25,8 @@ const commitTimestampPlaceholderString = "spanner.commit_timestamp()"
 
 var (
 	// ErrCannotInferArrayElementType is returned when an untyped array literal
-	// has no inferrable element type.
+	// has no inferrable element type (for example, an empty array with no
+	// explicit ARRAY<T> annotation).
 	ErrCannotInferArrayElementType = errors.New("cannot infer element type for array literal without explicit type")
 	// ErrUnsupportedExpr is returned when MemefishExprToGCV encounters an
 	// expression kind it does not evaluate.
@@ -354,6 +355,13 @@ func extractValues(expr ast.Expr) ([]ast.Expr, error) {
 	}
 }
 
+// MemefishExprToGCV evaluates a memefish expression AST node to a
+// GenericColumnValue. It handles literals, STRUCT and ARRAY literals, CAST and
+// SAFE_CAST, INTERVAL literals, and PENDING_COMMIT_TIMESTAMP().
+//
+// Unsupported expression kinds return an error. Array literals may use a
+// permissive wire fallback when elements cannot be coerced to the declared or
+// inferred element type; see package documentation.
 func MemefishExprToGCV(expr ast.Expr) (spanner.GenericColumnValue, error) {
 	switch e := expr.(type) {
 	case *ast.NullLiteral:
