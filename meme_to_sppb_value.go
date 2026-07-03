@@ -38,11 +38,13 @@ var (
 )
 
 func typelessStructLiteralArgToNameWithGCV(arg ast.TypelessStructLiteralArg, o evalOptions) (string, spanner.GenericColumnValue, error) {
+	var name string
 	var expr ast.Expr
 	switch a := arg.(type) {
 	case *ast.ExprArg:
 		expr = a.Expr
 	case *ast.Alias:
+		name = a.As.Alias.Name
 		expr = a.Expr
 	default:
 		return "", zeroGCV, fmt.Errorf("unknown struct literal arg: %v", a)
@@ -53,14 +55,7 @@ func typelessStructLiteralArgToNameWithGCV(arg ast.TypelessStructLiteralArg, o e
 		return "", zeroGCV, err
 	}
 
-	switch a := arg.(type) {
-	case *ast.ExprArg:
-		return "", gcv, nil
-	case *ast.Alias:
-		return a.As.Alias.Name, gcv, nil
-	default:
-		return "", zeroGCV, fmt.Errorf("unknown struct literal arg: %v", a)
-	}
+	return name, gcv, nil
 }
 
 func astStructLiteralsToGCV(expr ast.Expr, o evalOptions) (spanner.GenericColumnValue, error) {
