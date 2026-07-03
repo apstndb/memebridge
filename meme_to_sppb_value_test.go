@@ -160,6 +160,29 @@ func TestMemefishExprToGCV_EmptyArrayWithoutTypeReturnsError(t *testing.T) {
 	}
 }
 
+func TestMemefishExprToGCV_PermissiveArrayLiteralPreservesMismatchedWire(t *testing.T) {
+	got, err := memebridge.MemefishExprToGCV(&ast.ArrayLiteral{
+		Type: &ast.SimpleType{Name: ast.Int64TypeName},
+		Values: []ast.Expr{
+			&ast.IntLiteral{Value: "1", Base: 10},
+			&ast.BoolLiteral{Value: true},
+		},
+	})
+	if err != nil {
+		t.Fatalf("should not fail, but err: %v", err)
+	}
+	want := spanner.GenericColumnValue{
+		Type: typector.ElemCodeToArrayType(sppb.TypeCode_INT64),
+		Value: structpb.NewListValue(&structpb.ListValue{Values: []*structpb.Value{
+			structpb.NewStringValue("1"),
+			structpb.NewBoolValue(true),
+		}}),
+	}
+	if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+		t.Errorf("mismatch (-want +got):\n%s", diff)
+	}
+}
+
 func TestMemefishExprToGCV_AllNullArrayWithoutTypeInfersInt64(t *testing.T) {
 	got, err := memebridge.MemefishExprToGCV(&ast.ArrayLiteral{
 		Values: []ast.Expr{
