@@ -13,8 +13,8 @@ import (
 // TypeCode values. UUID is not included because memefish models it as a
 // NamedType, not a ScalarTypeName; see MemefishTypeToSpannerpbType.
 //
-// Treat this map as read-only; mutating it changes conversion behavior
-// process-wide.
+// Deprecated: use [ScalarTypeNameToTypeCode] instead. Treat this map as
+// read-only; mutating it changes conversion behavior process-wide.
 var ScalarTypeNameToTypeCodeMap = map[ast.ScalarTypeName]sppb.TypeCode{
 	ast.BoolTypeName:      sppb.TypeCode_BOOL,
 	ast.Int64TypeName:     sppb.TypeCode_INT64,
@@ -29,8 +29,17 @@ var ScalarTypeNameToTypeCodeMap = map[ast.ScalarTypeName]sppb.TypeCode{
 	ast.IntervalTypeName:  sppb.TypeCode_INTERVAL,
 }
 
+// ScalarTypeNameToTypeCode maps a memefish scalar type name to the
+// corresponding Spanner TypeCode. The second return value is false when the
+// name is not a known scalar type (for example UUID, which memefish models as
+// a NamedType).
+func ScalarTypeNameToTypeCode(name ast.ScalarTypeName) (sppb.TypeCode, bool) {
+	code, ok := ScalarTypeNameToTypeCodeMap[name]
+	return code, ok
+}
+
 func memefishScalarTypeToSpannerpbType(typename ast.ScalarTypeName) (*sppb.Type, error) {
-	if code, ok := ScalarTypeNameToTypeCodeMap[typename]; ok {
+	if code, ok := ScalarTypeNameToTypeCode(typename); ok {
 		return typector.CodeToSimpleType(code), nil
 	} else {
 		return nil, fmt.Errorf("unknown type: %v", typename)
