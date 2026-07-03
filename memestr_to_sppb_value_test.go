@@ -527,7 +527,7 @@ func TestParseExpr(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			got, err := memebridge.ParseExpr("", tt.input)
+			got, err := memebridge.ParseExprToGCV(tt.input)
 			if err != nil {
 				t.Errorf("should not fail, but err: %v", err)
 			}
@@ -547,7 +547,7 @@ func TestParseExpr(t *testing.T) {
 		}
 		safeInput := tt.input[:idx] + "SAFE_CAST(" + tt.input[idx+len("CAST("):]
 		t.Run(safeInput, func(t *testing.T) {
-			got, err := memebridge.ParseExpr("", safeInput)
+			got, err := memebridge.ParseExprToGCV(safeInput)
 			if err != nil {
 				t.Errorf("should not fail, but err: %v", err)
 			}
@@ -567,7 +567,7 @@ func TestParseExpr_Numeric(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			got, err := memebridge.ParseExpr("", tt.input)
+			got, err := memebridge.ParseExprToGCV(tt.input)
 			if err != nil {
 				t.Errorf("should not fail, but err: %v", err)
 			}
@@ -585,7 +585,7 @@ func TestParseExpr_Numeric(t *testing.T) {
 }
 
 func TestParseExpr_AllParenthesizedNullArrayInfersInt64(t *testing.T) {
-	got, err := memebridge.ParseExpr("", "[(NULL)]")
+	got, err := memebridge.ParseExprToGCV("[(NULL)]")
 	if err != nil {
 		t.Fatalf("should not fail, but err: %v", err)
 	}
@@ -657,7 +657,7 @@ func TestParseExpr_InvalidCastReturnsError(t *testing.T) {
 	}
 	for _, input := range tests {
 		t.Run(input, func(t *testing.T) {
-			if _, err := memebridge.ParseExpr("", input); err == nil {
+			if _, err := memebridge.ParseExprToGCV(input); err == nil {
 				t.Fatal("expected error")
 			}
 		})
@@ -667,13 +667,13 @@ func TestParseExpr_InvalidCastReturnsError(t *testing.T) {
 func TestParseExpr_NumericCastUnderflowRoundsToZero(t *testing.T) {
 	input := `CAST("0.` + strings.Repeat("0", 1200) + `1" AS NUMERIC)`
 
-	got, err := memebridge.ParseExpr("", input)
+	got, err := memebridge.ParseExprToGCV(input)
 	if err != nil {
-		t.Fatalf("ParseExpr returned error: %v", err)
+		t.Fatalf("ParseExprToGCV returned error: %v", err)
 	}
 
 	want := gcvctor.NumericValue(big.NewRat(0, 1))
 	if diff := cmp.Diff(want, got, protocmp.Transform(), cmpopts.EquateNaNs()); diff != "" {
-		t.Fatalf("ParseExpr mismatch (-want +got):\n%s", diff)
+		t.Fatalf("ParseExprToGCV mismatch (-want +got):\n%s", diff)
 	}
 }

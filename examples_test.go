@@ -7,8 +7,8 @@ import (
 	"github.com/cloudspannerecosystem/memefish"
 )
 
-func ExampleParseExpr() {
-	gcv, err := memebridge.ParseExpr("", `CAST(42 AS STRING)`)
+func ExampleParseExprToGCV() {
+	gcv, err := memebridge.ParseExprToGCV(`CAST(42 AS STRING)`)
 	if err != nil {
 		panic(err)
 	}

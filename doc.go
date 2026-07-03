@@ -13,7 +13,8 @@
 //
 // # Entry points
 //
-// ParseExpr parses a SQL expression string and returns a GenericColumnValue.
+// ParseExprToGCV parses a SQL expression string and returns a GenericColumnValue.
+// ParseExprFile is the same with a filename for memefish error positions.
 // MemefishExprToGCV converts an already-parsed ast.Expr. MemefishTypeToSpannerpbType
 // maps ast.Type to spannerpb.Type.
 //
