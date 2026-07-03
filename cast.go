@@ -791,12 +791,27 @@ func isDecimalNumericString(v string) bool {
 
 func parseSpannerInt64(v string) (int64, error) {
 	v = strings.TrimSpace(v)
+	sign := int64(1)
 	unsigned := v
-	if strings.HasPrefix(unsigned, "+") || strings.HasPrefix(unsigned, "-") {
+	if strings.HasPrefix(unsigned, "+") {
+		unsigned = unsigned[1:]
+	} else if strings.HasPrefix(unsigned, "-") {
+		sign = -1
 		unsigned = unsigned[1:]
 	}
 	if strings.HasPrefix(unsigned, "0x") || strings.HasPrefix(unsigned, "0X") {
-		return strconv.ParseInt(v, 0, 64)
+		if strings.Contains(unsigned, "_") {
+			return 0, strconv.ErrSyntax
+		}
+		digits := unsigned[2:]
+		if digits == "" {
+			return 0, strconv.ErrSyntax
+		}
+		i, err := strconv.ParseInt(digits, 16, 64)
+		if err != nil {
+			return 0, err
+		}
+		return sign * i, nil
 	}
 	return strconv.ParseInt(v, 10, 64)
 }
