@@ -30,6 +30,9 @@ var (
 	// ErrUnsupportedExpr is returned when MemefishExprToGCV encounters an
 	// expression kind it does not evaluate.
 	ErrUnsupportedExpr = errors.New("unsupported expression")
+	// ErrUnsupportedType is returned when MemefishTypeToSpannerpbType encounters a
+	// type kind it does not support.
+	ErrUnsupportedType = errors.New("unsupported type")
 	zeroGCV            spanner.GenericColumnValue
 )
 
