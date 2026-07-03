@@ -555,7 +555,7 @@ func castGCVToStruct(src spanner.GenericColumnValue, destType *sppb.Type, exprSQ
 }
 
 func isNullGCV(gcv spanner.GenericColumnValue) bool {
-	return spanvalue.IsNull(gcv)
+	return spanvalue.IsNull(gcv) || isNullValue(gcv.Value)
 }
 
 func boolFromGCV(gcv spanner.GenericColumnValue) (bool, error) {
