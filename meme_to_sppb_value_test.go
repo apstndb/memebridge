@@ -167,7 +167,7 @@ func TestMemefishExprToGCV_PermissiveArrayLiteralPreservesMismatchedWire(t *test
 			&ast.IntLiteral{Value: "1", Base: 10},
 			&ast.BoolLiteral{Value: true},
 		},
-	})
+	}, memebridge.WithLegacyArrayWirePassthrough())
 	if err != nil {
 		t.Fatalf("should not fail, but err: %v", err)
 	}
@@ -180,6 +180,19 @@ func TestMemefishExprToGCV_PermissiveArrayLiteralPreservesMismatchedWire(t *test
 	}
 	if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 		t.Errorf("mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestMemefishExprToGCV_StrictArrayLiteralRejectsMismatchedWire(t *testing.T) {
+	_, err := memebridge.MemefishExprToGCV(&ast.ArrayLiteral{
+		Type: &ast.SimpleType{Name: ast.Int64TypeName},
+		Values: []ast.Expr{
+			&ast.IntLiteral{Value: "1", Base: 10},
+			&ast.BoolLiteral{Value: true},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected error for mismatched ARRAY<INT64> elements")
 	}
 }
 

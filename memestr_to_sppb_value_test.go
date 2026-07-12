@@ -654,11 +654,45 @@ func TestParseExpr_InvalidCastReturnsError(t *testing.T) {
 		`CAST([NUMERIC "1.5"] AS ARRAY<FLOAT64>)`,
 		`CAST([1, NULL] AS ARRAY<FLOAT64>)`,
 		`CAST(STRUCT(1 AS foo, 2 AS bar) AS STRUCT<foo INT64>)`,
+		`ARRAY<INT64>[1, TRUE]`,
 	}
 	for _, input := range tests {
 		t.Run(input, func(t *testing.T) {
 			if _, err := memebridge.ParseExprToGCV(input); err == nil {
 				t.Fatal("expected error")
+			}
+		})
+	}
+}
+
+func TestParseExpr_LegacyArrayWirePassthrough(t *testing.T) {
+	const input = `ARRAY<INT64>[1, TRUE]`
+	tests := []struct {
+		name  string
+		parse func(...memebridge.EvalOption) error
+	}{
+		{
+			name: "ParseExprToGCV",
+			parse: func(opts ...memebridge.EvalOption) error {
+				_, err := memebridge.ParseExprToGCV(input, opts...)
+				return err
+			},
+		},
+		{
+			name: "ParseExprFile",
+			parse: func(opts ...memebridge.EvalOption) error {
+				_, err := memebridge.ParseExprFile("test.sql", input, opts...)
+				return err
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := tt.parse(); err == nil {
+				t.Fatal("strict default: expected error")
+			}
+			if err := tt.parse(memebridge.WithLegacyArrayWirePassthrough()); err != nil {
+				t.Fatalf("legacy passthrough: %v", err)
 			}
 		})
 	}
