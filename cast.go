@@ -62,7 +62,7 @@ var (
 	})
 )
 
-func memefishCastExprToGCV(cast *ast.CastExpr) (spanner.GenericColumnValue, error) {
+func memefishCastExprToGCV(cast *ast.CastExpr, o evalOptions) (spanner.GenericColumnValue, error) {
 	destType, err := MemefishTypeToSpannerpbType(cast.Type)
 	if err != nil {
 		return zeroGCV, err
@@ -72,7 +72,7 @@ func memefishCastExprToGCV(cast *ast.CastExpr) (spanner.GenericColumnValue, erro
 		return gcvctor.NullOf(destType), nil
 	}
 
-	src, err := MemefishExprToGCV(cast.Expr)
+	src, err := memefishExprToGCV(cast.Expr, o)
 	if err != nil {
 		return zeroGCV, err
 	}

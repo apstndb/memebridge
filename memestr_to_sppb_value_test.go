@@ -654,6 +654,7 @@ func TestParseExpr_InvalidCastReturnsError(t *testing.T) {
 		`CAST([NUMERIC "1.5"] AS ARRAY<FLOAT64>)`,
 		`CAST([1, NULL] AS ARRAY<FLOAT64>)`,
 		`CAST(STRUCT(1 AS foo, 2 AS bar) AS STRUCT<foo INT64>)`,
+		`ARRAY<INT64>[1, TRUE]`,
 	}
 	for _, input := range tests {
 		t.Run(input, func(t *testing.T) {
