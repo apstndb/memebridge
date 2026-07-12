@@ -9,13 +9,19 @@ import (
 	"github.com/cloudspannerecosystem/memefish/ast"
 )
 
-// ScalarTypeNameToTypeCodeMap maps memefish scalar type names to Spanner
-// TypeCode values. UUID is not included because memefish models it as a
-// NamedType, not a ScalarTypeName; see MemefishTypeToSpannerpbType.
-//
-// Deprecated: use [ScalarTypeNameToTypeCode] instead. Treat this map as
-// read-only; mutating it changes conversion behavior process-wide.
-var ScalarTypeNameToTypeCodeMap = map[ast.ScalarTypeName]sppb.TypeCode{
+// ScalarTypeNameToTypeCode maps a memefish scalar type name to the
+// corresponding Spanner TypeCode. The second return value is false when the
+// name is not a known scalar type (for example UUID, which memefish models as
+// a NamedType).
+func ScalarTypeNameToTypeCode(name ast.ScalarTypeName) (sppb.TypeCode, bool) {
+	code, ok := scalarTypeNameToTypeCode[name]
+	return code, ok
+}
+
+// scalarTypeNameToTypeCode maps memefish scalar type names to Spanner TypeCode
+// values. UUID is not included because memefish models it as a NamedType, not a
+// ScalarTypeName; see MemefishTypeToSpannerpbType.
+var scalarTypeNameToTypeCode = map[ast.ScalarTypeName]sppb.TypeCode{
 	ast.BoolTypeName:      sppb.TypeCode_BOOL,
 	ast.Int64TypeName:     sppb.TypeCode_INT64,
 	ast.Float64TypeName:   sppb.TypeCode_FLOAT64,
@@ -27,15 +33,6 @@ var ScalarTypeNameToTypeCodeMap = map[ast.ScalarTypeName]sppb.TypeCode{
 	ast.NumericTypeName:   sppb.TypeCode_NUMERIC,
 	ast.JSONTypeName:      sppb.TypeCode_JSON,
 	ast.IntervalTypeName:  sppb.TypeCode_INTERVAL,
-}
-
-// ScalarTypeNameToTypeCode maps a memefish scalar type name to the
-// corresponding Spanner TypeCode. The second return value is false when the
-// name is not a known scalar type (for example UUID, which memefish models as
-// a NamedType).
-func ScalarTypeNameToTypeCode(name ast.ScalarTypeName) (sppb.TypeCode, bool) {
-	code, ok := ScalarTypeNameToTypeCodeMap[name]
-	return code, ok
 }
 
 func memefishScalarTypeToSpannerpbType(typename ast.ScalarTypeName) (*sppb.Type, error) {
@@ -93,7 +90,7 @@ func MemefishTypeToSpannerpbType(typ ast.Type) (*sppb.Type, error) {
 		return typector.StructTypeFieldsToStructType(fields), nil
 	case *ast.NamedType:
 		// UUID is a NamedType in memefish, not a ScalarTypeName, so it is
-		// handled here rather than in ScalarTypeNameToTypeCodeMap.
+		// handled here rather than in scalarTypeNameToTypeCode.
 		if len(t.Path) == 1 {
 			switch strings.ToUpper(t.Path[0].Name) {
 			case "UUID":

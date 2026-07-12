@@ -5,14 +5,19 @@ import (
 	"github.com/cloudspannerecosystem/memefish"
 )
 
-// ParseExpr parses a GoogleSQL expression string and evaluates it to a
-// GenericColumnValue. The filepath argument is passed to memefish for error
-// positions only; an empty string is fine when positions are not needed.
-func ParseExpr(filepath, s string, opts ...EvalOption) (spanner.GenericColumnValue, error) {
-	expr, err := memefish.ParseExpr(filepath, s)
+// ParseExprToGCV parses a GoogleSQL expression string and evaluates it to a
+// GenericColumnValue.
+func ParseExprToGCV(expr string, opts ...EvalOption) (spanner.GenericColumnValue, error) {
+	return ParseExprFile("", expr, opts...)
+}
+
+// ParseExprFile is like [ParseExprToGCV] but passes filename to memefish for
+// error positions only.
+func ParseExprFile(filename, expr string, opts ...EvalOption) (spanner.GenericColumnValue, error) {
+	astExpr, err := memefish.ParseExpr(filename, expr)
 	if err != nil {
 		return spanner.GenericColumnValue{}, err
 	}
 
-	return MemefishExprToGCV(expr, opts...)
+	return MemefishExprToGCV(astExpr, opts...)
 }

@@ -13,7 +13,8 @@
 //
 // # Entry points
 //
-// ParseExpr parses a SQL expression string and returns a GenericColumnValue.
+// ParseExprToGCV parses a SQL expression string and returns a GenericColumnValue.
+// ParseExprFile is the same with a filename for memefish error positions.
 // MemefishExprToGCV converts an already-parsed ast.Expr. MemefishTypeToSpannerpbType
 // maps ast.Type to spannerpb.Type.
 //
@@ -34,8 +35,9 @@
 // sentinel; memebridge preserves it through TIMESTAMP→STRING casts.
 //
 // Array literals require elements to coerce to the declared or inferred element
-// type by default. Use [WithLegacyArrayWirePassthrough] on [MemefishExprToGCV] or
-// [ParseExpr] to restore pre-v0.7 behavior that preserves original element wire
-// values when coercion fails. Strict coercion is always used on expected-type
-// paths (typed STRUCT fields, ARRAY<T> annotations in typed contexts).
+// type by default. Use [WithLegacyArrayWirePassthrough] on [MemefishExprToGCV],
+// [ParseExprToGCV], or [ParseExprFile] to restore pre-v0.7 behavior that
+// preserves original element wire values when coercion fails. Strict coercion
+// is always used on expected-type paths (typed STRUCT fields, ARRAY<T>
+// annotations in typed contexts).
 package memebridge

@@ -17,7 +17,7 @@ There is no standalone binary build target; this project is validated through te
 
 ## Architecture
 
-- `ParseExpr` in `memestr_to_sppb_value.go` is the string entry point: it parses with `memefish.ParseExpr` and delegates to `MemefishExprToGCV`.
+- `ParseExprToGCV` in `memestr_to_sppb_value.go` is the string entry point: it parses with `memefish.ParseExpr` and delegates to `MemefishExprToGCV`.
 - `meme_to_sppb_value.go` is the main AST-to-`spanner.GenericColumnValue` layer. It handles literal evaluation, typed STRUCT/ARRAY expected-type coercion, and array element type inference.
 - `cast.go` is the single place for explicit `CAST` / `SAFE_CAST` behavior, typed NULL propagation, scalar conversion rules, ARRAY/STRUCT cast rules, numeric parsing, and temporal conversion defaults.
 - `meme_to_sppb_type.go` maps `memefish` types to `spannerpb.Type`; coercion and cast logic relies on those exact type objects.
@@ -34,7 +34,7 @@ When `type.proto` gains a `TypeCode` before memefish, spanvalue, or memebridge c
 | **spanvalue** | Dedicated constructors may be missing; scalar wire passthrough may still work for transport-only paths |
 | **memebridge** | Explicit error on type mapping, evaluation, or CAST — no guessing |
 
-Upper layers are stricter. Lower layers may be permissive only when shuttling already-valid wire without interpreting it. In memebridge: unknown scalar names error in `meme_to_sppb_type.go`; unhandled expressions return `ErrUnsupportedExpr`; unhandled cast pairs return `ErrUnsupportedCast`; return `ParseExpr` / `ParseType` errors from memefish unchanged.
+Upper layers are stricter. Lower layers may be permissive only when shuttling already-valid wire without interpreting it. In memebridge: unknown scalar names error in `meme_to_sppb_type.go`; unhandled expressions return `ErrUnsupportedExpr`; unhandled cast pairs return `ErrUnsupportedCast`; return `ParseExprToGCV` / `ParseType` errors from memefish unchanged.
 
 **Anti-patterns (all layers):** mapping unknown `TypeCode` to `TYPE_CODE_UNSPECIFIED`; silent coercion to `INT64` or `STRING` (except the documented bare-`NULL` → typed `INT64` NULL Spanner parity rule); unchecked `WithType` on semantic paths to hide missing support; assuming a `spannerpb` `go.mod` bump alone enables end-user SQL for a new type.
 
