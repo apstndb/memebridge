@@ -26,8 +26,8 @@ github.com/MakeNowJust/heredoc/v2 v2.0.1 h1:rlCHh70XXXv7toz95ajQWOWQnN4WNLt0TdpZ
 github.com/MakeNowJust/heredoc/v2 v2.0.1/go.mod h1:6/2Abh5s+hc3g9nbWLe9ObDIOhaRrqsyY9MWy+4JdRM=
 github.com/apstndb/spantype v0.3.13 h1:FTP3zUpVXMfPlZ3P+1RK6SYHND+96YVht0I+ZHGIzMc=
 github.com/apstndb/spantype v0.3.13/go.mod h1:9eHowE7LcJ155ukCYUyuNzVAw9Ne0GXPXpHmu+iaMyk=
-github.com/apstndb/spanvalue v0.8.2 h1:CMTJUmpSGtVrlKazMC6fmsi/PrOojhDNkmdLb0q1iPY=
-github.com/apstndb/spanvalue v0.8.2/go.mod h1:krLMj3J9sKS/IBLIUkEUlFufcxeLkIGJon+ypSPgrl0=
+github.com/apstndb/spanvalue v0.8.3 h1:7cjBIVnJ0lIqRZTL560eT5lC6dJjRxAo6svX8zwksPo=
+github.com/apstndb/spanvalue v0.8.3/go.mod h1:krLMj3J9sKS/IBLIUkEUlFufcxeLkIGJon+ypSPgrl0=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
