@@ -7,7 +7,7 @@ require (
 	cloud.google.com/go/spanner v1.92.0
 	github.com/apstndb/spantype v0.3.13
 	github.com/apstndb/spanvalue v0.8.2
-	github.com/cloudspannerecosystem/memefish v0.7.0
+	github.com/cloudspannerecosystem/memefish v0.8.1
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/samber/lo v1.53.0
@@ -52,7 +52,7 @@ require (
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.21.0 // indirect
 	golang.org/x/sys v0.45.0 // indirect
-	golang.org/x/text v0.37.0 // indirect
+	golang.org/x/text v0.38.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	google.golang.org/api v0.283.0 // indirect
 	google.golang.org/genproto v0.0.0-20260319201613-d00831a3d3e7 // indirect
