@@ -1,10 +1,10 @@
 module github.com/apstndb/memebridge
 
-go 1.25.8
+go 1.25.0
 
 require (
 	cloud.google.com/go v0.123.0
-	cloud.google.com/go/spanner v1.92.0
+	cloud.google.com/go/spanner v1.93.0
 	github.com/apstndb/spantype v0.3.13
 	github.com/apstndb/spanvalue v0.9.1
 	github.com/cloudspannerecosystem/memefish v0.9.0
