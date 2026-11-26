@@ -19,6 +19,7 @@ package cliparams
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"cloud.google.com/go/spanner"
@@ -34,6 +35,7 @@ type Option func(*config)
 type config struct {
 	separator      string
 	bareTypeAsNull bool
+	evalOptions    []memebridge.EvalOption
 }
 
 func newConfig(opts []Option) config {
@@ -62,6 +64,22 @@ func WithSeparator(separator string) Option {
 // expression is interpreted as a type.
 func WithBareTypeAsNull() Option {
 	return func(cfg *config) { cfg.bareTypeAsNull = true }
+}
+
+// WithEvalOptions appends [memebridge.EvalOption] values for expression
+// evaluation in [ParseValue], [ParseAssignments], and [ParseMap]. Each call
+// copies the input slice, and option groups are applied in caller order.
+// [WithBareTypeAsNull] handles bare types before expression evaluation.
+// [SplitAssignment] only splits the argument.
+//
+// Pass [memebridge.WithLegacyArrayWirePassthrough] to preserve original ARRAY
+// element wire values when coercion to the declared type fails. Typed STRUCT
+// fields use strict expected-type coercion.
+func WithEvalOptions(opts ...memebridge.EvalOption) Option {
+	options := slices.Clone(opts)
+	return func(cfg *config) {
+		cfg.evalOptions = append(cfg.evalOptions, options...)
+	}
 }
 
 // SplitAssignment splits one "name<separator>value" argument. The name must
@@ -100,7 +118,7 @@ func ParseValue(value string, opts ...Option) (spanner.GenericColumnValue, error
 	if err != nil {
 		return spanner.GenericColumnValue{}, fmt.Errorf("cliparams: parsing expression %q: %w", value, err)
 	}
-	gcv, err := memebridge.MemefishExprToGCV(expr)
+	gcv, err := memebridge.MemefishExprToGCV(expr, cfg.evalOptions...)
 	if err != nil {
 		return spanner.GenericColumnValue{}, fmt.Errorf("cliparams: generating value for %q: %w", value, err)
 	}

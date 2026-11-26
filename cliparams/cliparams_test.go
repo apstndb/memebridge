@@ -11,6 +11,7 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/structpb"
 
+	"github.com/apstndb/memebridge"
 	"github.com/apstndb/memebridge/cliparams"
 )
 
@@ -33,7 +34,10 @@ func TestParseValue(t *testing.T) {
 				structpb.NewListValue(&structpb.ListValue{Values: []*structpb.Value{structpb.NewStringValue("foo")}})),
 		},
 		{
-			`ARRAY<STRING>`, []cliparams.Option{cliparams.WithBareTypeAsNull()},
+			`ARRAY<STRING>`, []cliparams.Option{
+				cliparams.WithBareTypeAsNull(),
+				cliparams.WithEvalOptions(memebridge.WithLegacyArrayWirePassthrough()),
+			},
 			gcvOf(typector.ElemCodeToArrayType(sppb.TypeCode_STRING), structpb.NewNullValue()),
 		},
 		{
@@ -150,6 +154,46 @@ func TestParseMap(t *testing.T) {
 func TestParseMapEmptyName(t *testing.T) {
 	if _, err := cliparams.ParseMap(map[string]string{"": "1"}); err == nil {
 		t.Error("want error for empty parameter name, got nil")
+	}
+}
+
+func TestWithEvalOptions(t *testing.T) {
+	const expression = "ARRAY<INT64>[1.5]"
+	want := gcvOf(typector.ElemCodeToArrayType(sppb.TypeCode_INT64),
+		structpb.NewListValue(&structpb.ListValue{Values: []*structpb.Value{structpb.NewNumberValue(1.5)}}))
+
+	evalOptions := []memebridge.EvalOption{memebridge.WithLegacyArrayWirePassthrough()}
+	legacy := cliparams.WithEvalOptions(evalOptions...)
+	evalOptions[0] = nil
+
+	for _, tt := range []struct {
+		name  string
+		parse func(...cliparams.Option) (spanner.GenericColumnValue, error)
+	}{
+		{"ParseValue", func(opts ...cliparams.Option) (spanner.GenericColumnValue, error) {
+			return cliparams.ParseValue(expression, opts...)
+		}},
+		{"ParseAssignments", func(opts ...cliparams.Option) (spanner.GenericColumnValue, error) {
+			params, err := cliparams.ParseAssignments([]string{"p=" + expression}, append(opts, cliparams.WithSeparator("="))...)
+			return params["p"], err
+		}},
+		{"ParseMap", func(opts ...cliparams.Option) (spanner.GenericColumnValue, error) {
+			params, err := cliparams.ParseMap(map[string]string{"p": expression}, opts...)
+			return params["p"], err
+		}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := tt.parse(); err == nil {
+				t.Fatal("strict array coercion accepted an incompatible element")
+			}
+			got, err := tt.parse(legacy, cliparams.WithEvalOptions(nil))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+				t.Errorf("legacy array mismatch (-want +got):\n%s", diff)
+			}
+		})
 	}
 }
 
