@@ -1,6 +1,7 @@
 package cliparams_test
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 
@@ -157,6 +158,11 @@ func TestParseMapEmptyName(t *testing.T) {
 	}
 }
 
+// An external caller can infer the comparable state type through Option.
+var _ func(cliparams.Option) = requireComparableOptionState
+
+func requireComparableOptionState[O ~func(*T), T comparable](O) {}
+
 func TestWithEvalOptions(t *testing.T) {
 	const expression = "ARRAY<INT64>[1.5]"
 	want := gcvOf(typector.ElemCodeToArrayType(sppb.TypeCode_INT64),
@@ -192,6 +198,28 @@ func TestWithEvalOptions(t *testing.T) {
 			}
 			if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 				t.Errorf("legacy array mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestWithEvalOptionsConcurrentReuse(t *testing.T) {
+	shared := cliparams.WithEvalOptions(nil)
+	legacy := cliparams.WithEvalOptions(memebridge.WithLegacyArrayWirePassthrough())
+	empty := cliparams.WithEvalOptions()
+	for i := range 8 {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			t.Parallel()
+			opts := []cliparams.Option{shared, empty}
+			useLegacy := i%2 == 0
+			if useLegacy {
+				opts = append(opts, legacy)
+			}
+			for range 16 {
+				_, err := cliparams.ParseValue("ARRAY<INT64>[1.5]", opts...)
+				if (err == nil) != useLegacy {
+					t.Fatalf("legacy=%v, ParseValue error=%v", useLegacy, err)
+				}
 			}
 		})
 	}

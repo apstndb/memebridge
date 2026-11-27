@@ -35,7 +35,9 @@ type Option func(*config)
 type config struct {
 	separator      string
 	bareTypeAsNull bool
-	evalOptions    []memebridge.EvalOption
+	// The public Option function type lets callers infer config. Keep it
+	// comparable so those callers continue to compile.
+	evalOptions *[]memebridge.EvalOption
 }
 
 func newConfig(opts []Option) config {
@@ -78,7 +80,17 @@ func WithBareTypeAsNull() Option {
 func WithEvalOptions(opts ...memebridge.EvalOption) Option {
 	options := slices.Clone(opts)
 	return func(cfg *config) {
-		cfg.evalOptions = append(cfg.evalOptions, options...)
+		if len(options) == 0 {
+			return
+		}
+		// Share the immutable first group. Later groups get a new slice so
+		// reusing this Option never changes the options of another config.
+		if cfg.evalOptions == nil {
+			cfg.evalOptions = &options
+			return
+		}
+		combined := slices.Concat(*cfg.evalOptions, options)
+		cfg.evalOptions = &combined
 	}
 }
 
@@ -118,7 +130,11 @@ func ParseValue(value string, opts ...Option) (spanner.GenericColumnValue, error
 	if err != nil {
 		return spanner.GenericColumnValue{}, fmt.Errorf("cliparams: parsing expression %q: %w", value, err)
 	}
-	gcv, err := memebridge.MemefishExprToGCV(expr, cfg.evalOptions...)
+	var evalOptions []memebridge.EvalOption
+	if cfg.evalOptions != nil {
+		evalOptions = *cfg.evalOptions
+	}
+	gcv, err := memebridge.MemefishExprToGCV(expr, evalOptions...)
 	if err != nil {
 		return spanner.GenericColumnValue{}, fmt.Errorf("cliparams: generating value for %q: %w", value, err)
 	}
